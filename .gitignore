@@ -30,8 +30,24 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env and secrets
+.env
+.env.*
+!.env.example
+service-account*.json
+credentials*.json
+firebase-admin*.json
+
+# model weights & media
+*.ckpt
+*.safetensors
+*.pt
+*.bin
+/public/uploads/*
+!/public/uploads/.gitkeep
+uploaded_media/
+generated_media/
+local_databases/
 
 # vercel
 .vercel

@@ -1,0 +1,40 @@
+import { ExperienceDefinition } from '@/types/portal';
+
+export const EXPERIENCES: ExperienceDefinition[] = [
+  {
+    id: 'presence',
+    orderNumber: '01',
+    title: 'PRESENCE',
+    subtitle: 'Remembrance & Connection',
+    description: 'Preserve memories. Revisit voice, stories, and a familiar presence.',
+    status: 'active',
+    statusLabel: 'ACTIVE',
+    route: '/experience/presence',
+    capabilities: ['Memory', 'Voice', 'Presence', 'Private'],
+    isHero: true,
+  },
+  {
+    id: 'follow-through',
+    orderNumber: '02',
+    title: 'FOLLOW THROUGH',
+    subtitle: 'Work Radar & Commitment Tracking',
+    description: 'Find work that needs human attention and ensure nothing slips.',
+    status: 'coming-soon',
+    statusLabel: 'COMING NEXT',
+    route: '/experience/follow-through',
+    capabilities: ['Commitments', 'Attention', 'Handoff'],
+    isHero: false,
+  },
+  {
+    id: 'system-explorer',
+    orderNumber: '03',
+    title: 'SYSTEM EXPLORER',
+    subtitle: 'Infrastructure Understanding',
+    description: 'Understand infrastructure by interacting with it, not reading dashboards.',
+    status: 'coming-soon',
+    statusLabel: 'COMING NEXT',
+    route: '/experience/system-explorer',
+    capabilities: ['Topology', 'Constraints', 'Evidence'],
+    isHero: false,
+  },
+];

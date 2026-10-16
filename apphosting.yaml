@@ -1,0 +1,15 @@
+# Firebase App Hosting Configuration
+# See https://firebase.google.com/docs/app-hosting/configure
+
+service:
+  cpu: 1
+  memoryMiB: 1024
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 80
+
+env:
+  - variable: NODE_ENV
+    value: production
+  - variable: NEXT_PUBLIC_APP_NAME
+    value: ParamSathya

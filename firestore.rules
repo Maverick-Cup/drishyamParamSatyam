@@ -1,0 +1,365 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: /profiles/{profileId}
+    // Document ID: profile identifier string (e.g., profile-satya-default)
+    // Fields:
+    //   - ownerUid: string (required, 1-128 chars, immutable) - The owner UID
+    //   - members: list (optional, max 100 UIDs) - Member user IDs granted access
+    //   - displayName: string (optional, max 120 chars) - Profile display name
+    //   - createdAt: string or timestamp (optional)
+    //   - updatedAt: string or timestamp (optional)
+    //
+    // Subcollection: /profiles/{profileId}/memories/{memoryId}
+    // Fields:
+    //   - id: string (required, max 128 chars, matches document ID or unchanged)
+    //   - ownerUid: string (required, 1-128 chars, immutable)
+    //   - profileId: string (required, 1-128 chars, matches parent path, immutable)
+    //   - representedPersonId: string (required, 1-128 chars)
+    //   - contributorUid: string (required, 1-128 chars)
+    //   - recordedSpeakerId: string (optional, max 128 chars)
+    //   - sourceRefs: list of strings (required, max 50 items, each string max 500 chars)
+    //   - sourceOffsetSeconds: number (optional, >= 0)
+    //   - sourcePageOffset: number (optional, >= 0)
+    //   - reviewedText: string (required, 1-50000 chars)
+    //   - provenance: string (required, enum: VERIFIED_FIRST_PERSON | ATTRIBUTED_RECOLLECTION | USER_CONTEXT | GENERAL_SUPPORT | GENERATED_CONTENT)
+    //   - reviewStatus: string (required, enum: PENDING | APPROVED | REJECTED | REVOKED)
+    //   - embedding768: list or vector (optional)
+    //   - createdAt: string or timestamp (optional, immutable)
+    //   - updatedAt: string or timestamp (optional)
+    //
+    // Subcollection: /profiles/{profileId}/permission_grants/{granteeUid}
+    // Fields:
+    //   - id: string (optional, max 128 chars)
+    //   - profileId: string (required, 1-128 chars, matches parent path, immutable)
+    //   - representedPersonId: string (required, 1-128 chars)
+    //   - granteeUid: string (required, 1-128 chars, matches document ID, immutable)
+    //   - allowPresenceView: bool (required)
+    //   - allowVoiceSynthesis: bool (required)
+    //   - allowAvatarRender: bool (required)
+    //   - isConsentedAdult: bool (required)
+    //   - version: int (required, >= 1)
+    //   - updatedAt: string or timestamp (optional)
+    //
+    // Subcollection: /profiles/{profileId}/audit_events/{eventId}
+    // Fields (server-only write via admin SDK, owner-only read for export):
+    //   - id: string
+    //   - timestamp: string or timestamp
+    //   - userId: string
+    //   - profileId: string
+    //   - eventType: string
+    //   - payload: map
+    //
+    // Subcollection: /profiles/{profileId}/invitations/{inviteId}
+    // Fields:
+    //   - id: string (optional, max 128 chars)
+    //   - profileId: string (required, 1-128 chars, matches parent path, immutable)
+    //   - invitedEmail: string (optional, max 254 chars, valid email)
+    //   - recipientUid: string (optional, 1-128 chars)
+    //   - invitedBy: string (required, 1-128 chars, matches ownerUid)
+    //   - role: string (required, enum: member | contributor | viewer)
+    //   - status: string (required, enum: pending | accepted | declined | revoked)
+    //   - createdAt: string or timestamp (optional, immutable)
+    //   - expiresAt: string or timestamp (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Global Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.size() <= 254 &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidList(items, maxSize) {
+      return items is list && items.size() <= maxSize;
+    }
+
+    function isValidOptionalString(data, field, minLen, maxLen) {
+      return !(field in data) ||
+        (data[field] is string &&
+         data[field].size() >= minLen &&
+         data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalNumber(data, field, minVal, maxVal) {
+      return !(field in data) ||
+        (data[field] is number &&
+         data[field] >= minVal &&
+         data[field] <= maxVal);
+    }
+
+    // ===============================================================
+    // Profile Helpers
+    // ===============================================================
+
+    function getProfileData(profileId) {
+      return get(/databases/$(database)/documents/profiles/$(profileId)).data;
+    }
+
+    function profileExists(profileId) {
+      return exists(/databases/$(database)/documents/profiles/$(profileId));
+    }
+
+    function isProfileOwner(profileId) {
+      return isAuthenticated() &&
+        profileExists(profileId) &&
+        getProfileData(profileId).ownerUid == request.auth.uid;
+    }
+
+    function isProfileMember(profileId) {
+      return isAuthenticated() &&
+        profileExists(profileId) &&
+        (
+          getProfileData(profileId).ownerUid == request.auth.uid ||
+          (
+            ('members' in getProfileData(profileId)) &&
+            getProfileData(profileId).members is list &&
+            request.auth.uid in getProfileData(profileId).members
+          )
+        );
+    }
+
+    function hasActivePermissionGrant(profileId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/profiles/$(profileId)/permission_grants/$(request.auth.uid));
+    }
+
+    function isApprovedContributor(profileId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/profiles/$(profileId)/permission_grants/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/profiles/$(profileId)/permission_grants/$(request.auth.uid)).data.allowPresenceView == true;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidProfile(data) {
+      let allowed = ['ownerUid', 'members', 'displayName', 'createdAt', 'updatedAt'];
+      return data.keys().hasOnly(allowed) &&
+        ('ownerUid' in data) &&
+        data.ownerUid is string &&
+        data.ownerUid.size() >= 1 &&
+        data.ownerUid.size() <= 128 &&
+        isValidOptionalString(data, 'displayName', 1, 120) &&
+        (!('members' in data) || isValidList(data.members, 100));
+    }
+
+    function isValidMemory(data, profileId) {
+      let allowed = [
+        'id', 'ownerUid', 'profileId', 'representedPersonId', 'contributorUid',
+        'recordedSpeakerId', 'sourceRefs', 'sourceOffsetSeconds', 'sourcePageOffset',
+        'reviewedText', 'provenance', 'reviewStatus', 'embedding768', 'createdAt', 'updatedAt'
+      ];
+      let required = [
+        'ownerUid', 'profileId', 'representedPersonId', 'contributorUid',
+        'sourceRefs', 'reviewedText', 'provenance', 'reviewStatus'
+      ];
+
+      let validProvenance = [
+        'VERIFIED_FIRST_PERSON', 'ATTRIBUTED_RECOLLECTION', 'USER_CONTEXT',
+        'GENERAL_SUPPORT', 'GENERATED_CONTENT'
+      ];
+      let validReviewStatus = [
+        'PENDING', 'APPROVED', 'REJECTED', 'REVOKED'
+      ];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(required) &&
+        data.ownerUid is string && data.ownerUid.size() >= 1 && data.ownerUid.size() <= 128 &&
+        data.profileId == profileId &&
+        data.representedPersonId is string && data.representedPersonId.size() >= 1 && data.representedPersonId.size() <= 128 &&
+        data.contributorUid is string && data.contributorUid.size() >= 1 && data.contributorUid.size() <= 128 &&
+        isValidOptionalString(data, 'recordedSpeakerId', 1, 128) &&
+        isValidList(data.sourceRefs, 50) &&
+        isValidOptionalNumber(data, 'sourceOffsetSeconds', 0, 864000) &&
+        isValidOptionalNumber(data, 'sourcePageOffset', 0, 100000) &&
+        data.reviewedText is string && data.reviewedText.size() >= 1 && data.reviewedText.size() <= 50000 &&
+        data.provenance in validProvenance &&
+        data.reviewStatus in validReviewStatus &&
+        isValidOptionalString(data, 'id', 1, 128);
+    }
+
+    function isValidPermissionGrant(data, profileId, granteeUid) {
+      let allowed = [
+        'id', 'profileId', 'representedPersonId', 'granteeUid',
+        'allowPresenceView', 'allowVoiceSynthesis', 'allowAvatarRender',
+        'isConsentedAdult', 'version', 'updatedAt'
+      ];
+      let required = [
+        'profileId', 'representedPersonId', 'granteeUid',
+        'allowPresenceView', 'allowVoiceSynthesis', 'allowAvatarRender',
+        'isConsentedAdult', 'version'
+      ];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(required) &&
+        data.profileId == profileId &&
+        data.granteeUid == granteeUid &&
+        data.representedPersonId is string && data.representedPersonId.size() >= 1 && data.representedPersonId.size() <= 128 &&
+        data.allowPresenceView is bool &&
+        data.allowVoiceSynthesis is bool &&
+        data.allowAvatarRender is bool &&
+        data.isConsentedAdult is bool &&
+        data.version is int && data.version >= 1 &&
+        isValidOptionalString(data, 'id', 1, 128);
+    }
+
+    function isValidInvitation(data, profileId) {
+      let allowed = [
+        'id', 'profileId', 'invitedEmail', 'recipientUid',
+        'invitedBy', 'role', 'status', 'createdAt', 'expiresAt'
+      ];
+      let required = ['profileId', 'invitedBy', 'role', 'status'];
+      let validRoles = ['member', 'contributor', 'viewer'];
+      let validStatuses = ['pending', 'accepted', 'declined', 'revoked'];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(required) &&
+        data.profileId == profileId &&
+        data.invitedBy == request.auth.uid &&
+        data.role in validRoles &&
+        data.status in validStatuses &&
+        (!('invitedEmail' in data) || isValidEmail(data.invitedEmail)) &&
+        isValidOptionalString(data, 'recipientUid', 1, 128) &&
+        isValidOptionalString(data, 'id', 1, 128);
+    }
+
+    // ===============================================================
+    // Path Rules
+    // ===============================================================
+
+    // Root Profiles Collection
+    match /profiles/{profileId} {
+      allow read: if isAuthenticated() && (
+        resource.data.ownerUid == request.auth.uid ||
+        (
+          ('members' in resource.data) &&
+          resource.data.members is list &&
+          request.auth.uid in resource.data.members
+        )
+      );
+
+      allow create: if isAuthenticated() &&
+        isValidProfile(request.resource.data) &&
+        request.resource.data.ownerUid == request.auth.uid;
+
+      allow update: if isAuthenticated() &&
+        resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.ownerUid == resource.data.ownerUid &&
+        isValidProfile(request.resource.data);
+
+      allow delete: if isAuthenticated() &&
+        resource.data.ownerUid == request.auth.uid;
+
+      // Subcollection: Memories
+      match /memories/{memoryId} {
+        allow read: if isAuthenticated() && (
+          isProfileOwner(profileId) ||
+          hasActivePermissionGrant(profileId)
+        );
+
+        allow create: if isAuthenticated() &&
+          isValidMemory(request.resource.data, profileId) &&
+          (isProfileOwner(profileId) || isApprovedContributor(profileId)) &&
+          request.resource.data.contributorUid == request.auth.uid &&
+          (
+            isProfileOwner(profileId) ||
+            request.resource.data.reviewStatus == 'PENDING'
+          );
+
+        allow update: if isAuthenticated() &&
+          isValidMemory(request.resource.data, profileId) &&
+          (isProfileOwner(profileId) || isApprovedContributor(profileId)) &&
+          request.resource.data.ownerUid == resource.data.ownerUid &&
+          request.resource.data.profileId == resource.data.profileId &&
+          (
+            isProfileOwner(profileId) ||
+            (
+              resource.data.contributorUid == request.auth.uid &&
+              request.resource.data.contributorUid == resource.data.contributorUid &&
+              request.resource.data.reviewStatus == resource.data.reviewStatus
+            )
+          );
+
+        allow delete: if isProfileOwner(profileId);
+      }
+
+      // Subcollection: Permission Grants
+      match /permission_grants/{granteeUid} {
+        allow read: if isAuthenticated() && (
+          request.auth.uid == granteeUid ||
+          isProfileOwner(profileId)
+        );
+
+        allow create: if isProfileOwner(profileId) &&
+          isValidPermissionGrant(request.resource.data, profileId, granteeUid);
+
+        allow update: if isProfileOwner(profileId) &&
+          isValidPermissionGrant(request.resource.data, profileId, granteeUid) &&
+          request.resource.data.profileId == resource.data.profileId &&
+          request.resource.data.granteeUid == resource.data.granteeUid;
+
+        allow delete: if isProfileOwner(profileId);
+      }
+
+      // Subcollection: Audit Events
+      match /audit_events/{eventId} {
+        // Only profile owner can read for compliance export
+        allow read: if isProfileOwner(profileId);
+
+        // Denied from all web clients.
+        // Audits are written server-side by Next.js / Cloud Run using firebase-admin SDK.
+        allow write: if false;
+      }
+
+      // Subcollection: Invitations
+      match /invitations/{inviteId} {
+        allow read: if isAuthenticated() && (
+          isProfileOwner(profileId) ||
+          (
+            ('recipientUid' in resource.data) &&
+            resource.data.recipientUid == request.auth.uid
+          ) ||
+          (
+            ('invitedEmail' in resource.data) &&
+            request.auth.token.email != null &&
+            resource.data.invitedEmail == request.auth.token.email
+          )
+        );
+
+        allow create: if isProfileOwner(profileId) &&
+          isValidInvitation(request.resource.data, profileId);
+
+        allow update: if isProfileOwner(profileId) &&
+          isValidInvitation(request.resource.data, profileId) &&
+          request.resource.data.profileId == resource.data.profileId &&
+          request.resource.data.invitedBy == resource.data.invitedBy;
+
+        allow delete: if isProfileOwner(profileId);
+      }
+    }
+
+    // Default Deny for all other unmatched collections and paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

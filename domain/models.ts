@@ -1,0 +1,112 @@
+/**
+ * Domain Models for ParamSathya
+ * Strict TypeScript contracts with ZERO external dependencies (no React, Firebase, or Google SDKs).
+ */
+
+export type ResponseMode = 'PRESENCE' | 'GUIDE' | 'SAFETY';
+
+export type SupportLevel =
+  | 'DIRECT_SOURCE'
+  | 'ATTRIBUTED_RECOLLECTION'
+  | 'GENERAL_SUPPORT'
+  | 'INSUFFICIENT_EVIDENCE';
+
+export type ProvenanceType =
+  | 'VERIFIED_FIRST_PERSON'
+  | 'ATTRIBUTED_RECOLLECTION'
+  | 'USER_CONTEXT'
+  | 'GENERAL_SUPPORT'
+  | 'GENERATED_CONTENT';
+
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
+
+export type SafetyState = 'NORMAL' | 'ELEVATED' | 'URGENT';
+
+export interface ClaimVerification {
+  text: string;
+  evidenceRefs: string[];
+  supportLevel: SupportLevel;
+}
+
+export interface GroundedResponse {
+  mode: ResponseMode;
+  text: string;
+  claims: ClaimVerification[];
+  guideHandoff: boolean;
+  renderAllowed: boolean;
+  safetyState: SafetyState;
+}
+
+export interface MemoryRecord {
+  id: string;
+  ownerUid: string;
+  profileId: string;
+  representedPersonId: string;
+  contributorUid: string;
+  recordedSpeakerId?: string;
+  sourceRefs: string[];
+  sourceOffsetSeconds?: number;
+  sourcePageOffset?: number;
+  reviewedText: string;
+  provenance: ProvenanceType;
+  reviewStatus: ReviewStatus;
+  embedding768?: number[]; // 768-dimensional Gemini Embedding 2
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RepresentedPerson {
+  id: string;
+  ownerUid: string;
+  fullName: string;
+  relationship: string;
+  bornYear?: number;
+  passedYear?: number;
+  defaultPortraitUrl?: string;
+  activeVoiceProfileId?: string;
+  createdAt: string;
+}
+
+export interface PermissionGrant {
+  id: string;
+  profileId: string;
+  representedPersonId: string;
+  granteeUid: string;
+  allowPresenceView: boolean;
+  allowVoiceSynthesis: boolean;
+  allowAvatarRender: boolean;
+  isConsentedAdult: boolean;
+  version: number;
+  updatedAt: string;
+}
+
+export interface RenderDecisionPacket {
+  requestId: string;
+  userId: string;
+  profileId: string;
+  requestedMode: ResponseMode;
+  normalisedUserIntent: string;
+  evidenceRefs: string[];
+  proposedTextHash: string;
+  claimSupportSummary: string;
+  voicePermissionVersion: number;
+  likenessPermissionVersion: number;
+  safetyState: SafetyState;
+  selectedRenderer: 'ORIGINAL_RECORDING' | 'REPLICATED_TTS' | 'VOICESTUDIO' | 'STATIC_NEUTRAL';
+}
+
+export interface RenderAuthorizationResult {
+  authorized: boolean;
+  reason?: string;
+  decisionPacket: RenderDecisionPacket;
+  authorizedTimestamp: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  timestamp: string;
+  userId: string;
+  profileId: string;
+  eventType: 'AUTHZ_DECISION' | 'GROUNDING_EVAL' | 'MODE_TRANSITION' | 'MEDIA_RENDER' | 'SAFETY_TRIGGER';
+  payload: Record<string, unknown>;
+}
