@@ -60,6 +60,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing personId or audio sample file' }, { status: 400 });
     }
 
+    // Security Guard: Prevent file upload exhaustion (max 15MB)
+    const MAX_FILE_SIZE = 15 * 1024 * 1024;
+    if (sampleFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        { error: 'Audio sample exceeds maximum limit of 15MB.', threatType: 'RESOURCE_EXHAUSTION' },
+        { status: 400 }
+      );
+    }
+
+    // Security Guard: Validate audio extension / MIME
+    const allowedExtensions = ['.wav', '.mp3', '.m4a', '.ogg'];
+    const hasValidExt = allowedExtensions.some((ext) => sampleFile.name.toLowerCase().endsWith(ext));
+    if (!hasValidExt && !sampleFile.type.startsWith('audio/')) {
+      return NextResponse.json(
+        { error: 'Invalid file type. Only audio files (.wav, .mp3, .m4a) are permitted.', threatType: 'MALICIOUS_UPLOAD' },
+        { status: 400 }
+      );
+    }
+
     if (!consented) {
       return NextResponse.json(
         { error: 'Explicit adult consent is required to clone and bind voice' },

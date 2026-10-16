@@ -16,6 +16,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Text cannot be empty' }, { status: 400 });
     }
 
+    // Hardened Resource Guard: Limit speech generation length to prevent wallet draining
+    if (text.length > 300) {
+      return NextResponse.json(
+        {
+          error: 'Text length exceeds maximum allowed limit of 300 characters for voice synthesis.',
+          threatType: 'WALLET_DRAIN_PREVENTION',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Alphanumeric format check on voiceId
+    if (!/^[a-zA-Z0-9_\-]{8,64}$/.test(voiceId)) {
+      return NextResponse.json(
+        { error: 'Invalid voiceId format. Must be alphanumeric.', threatType: 'PARAMETER_TAMPERING' },
+        { status: 400 }
+      );
+    }
+
     if (!syncLabsService.isConfigured()) {
       return NextResponse.json({
         success: false,

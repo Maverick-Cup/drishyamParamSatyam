@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
  * ZERO SECRETS: Reads LIPSYNC_BACKEND_URL from process.env or request headers without hardcoded keys.
  */
 
+import { AgentGuardrails } from '@/services/AgentGuardrails';
+
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
@@ -18,8 +20,20 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get('audioFile');
     const backendUrl = process.env.LIPSYNC_BACKEND_URL || request.headers.get('x-lipsync-backend-url') || '';
 
-    // If external runner is specified, forward the request with resilient retry logic
+    // If external runner is specified, validate against SSRF before connecting
     if (backendUrl) {
+      const urlCheck = AgentGuardrails.validateSafeWebhookUrl(backendUrl);
+      if (!urlCheck.isValid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insecure or unauthorized runner destination blocked: ${urlCheck.reason}`,
+            threatType: 'SSRF_BLOCKED',
+          },
+          { status: 400 }
+        );
+      }
+
       const targetUrl = backendUrl.endsWith('/') ? `${backendUrl}sync` : `${backendUrl}/sync`;
       const MAX_RETRIES = 3;
       const RETRY_BASE_DELAY_MS = 600;
