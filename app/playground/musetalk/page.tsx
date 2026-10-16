@@ -97,25 +97,50 @@ export default function MuseTalkPlaygroundPage() {
       formData.append('textFallback', textFallback);
       formData.append('bboxShift', bboxShift.toString());
 
-      const res = await fetch('/api/musetalk', {
-        method: 'POST',
-        body: formData,
-      });
+      let attempts = 0;
+      const MAX_RETRIES = 3;
+      let success = false;
 
-      const data = await res.json();
-      if (data.logs) {
-        setLogs((prev) => [...prev, ...data.logs]);
+      while (attempts < MAX_RETRIES && !success) {
+        attempts++;
+        try {
+          if (attempts > 1) {
+            setLogs((prev) => [...prev, `[Network Retry] Reconnecting to model (attempt ${attempts}/${MAX_RETRIES})...`]);
+          }
+
+          const res = await fetch('/api/musetalk', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!res.ok) {
+            throw new Error(`Inference returned status ${res.status}`);
+          }
+
+          const data = await res.json();
+          if (data.logs) {
+            setLogs((prev) => [...prev, ...data.logs]);
+          }
+          if (data.outputVideoUrl) {
+            setOutputVideoUrl(data.outputVideoUrl);
+            setLogs((prev) => [
+              ...prev,
+              `✓ Video output ready! Render latency: ${data.inferenceTimeMs}ms at ${data.fps} FPS.`,
+            ]);
+          }
+          setStatus(data.status);
+          success = true;
+        } catch (attemptErr: any) {
+          if (attempts >= MAX_RETRIES) {
+            throw attemptErr;
+          }
+          const backoffDelay = 800 * attempts;
+          setLogs((prev) => [...prev, `Network drop detected (${attemptErr.message}). Retrying in ${backoffDelay}ms...`]);
+          await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+        }
       }
-      if (data.outputVideoUrl) {
-        setOutputVideoUrl(data.outputVideoUrl);
-        setLogs((prev) => [
-          ...prev,
-          `✓ Video output ready! Render latency: ${data.inferenceTimeMs}ms at ${data.fps} FPS.`,
-        ]);
-      }
-      setStatus(data.status);
     } catch (err: any) {
-      setLogs((prev) => [...prev, `Render Error: ${err.message}`]);
+      setLogs((prev) => [...prev, `Render Error (connection exhausted): ${err.message}`]);
       setStatus('FAILED');
     } finally {
       setIsProcessing(false);
