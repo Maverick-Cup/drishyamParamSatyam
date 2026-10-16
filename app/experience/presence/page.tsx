@@ -232,7 +232,7 @@ export default function PresenceGriefTechPage() {
 
   // Active Portrait & Authentic Audio Source State
   const [activePortraitUrl, setActivePortraitUrl] = useState<string>(
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuAAZf-XDOFaVRVs8z4ta1azpn5uTYBtURgwW0i61rRDiMTqYZpjKJxULqkQxEBnknKvlBnnfIKnQEuWe0n9Dd9xv_r2FKIUaj26I8bTiYMial_HZPwrgsIHgcLgK2JOQKiIgfTiOSjz7rDIbBbDVpPNF_-yJVrZkOiEUXqtlHNrUBnPbVBlNKa4IneP4qyofcpLLj9PY0LfxoHPBSWtb5pLeSLOJp9vTfyKnCtzoRQ'
+    '/avatar_thomas_clean.jpg'
   );
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
   const [activeAudioTitle, setActiveAudioTitle] = useState<string>('Thomas 2018 Memory Snippet (Authentic)');
@@ -1628,20 +1628,20 @@ export default function PresenceGriefTechPage() {
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#080c14]/80 via-transparent to-cyan-500/10 pointer-events-none"></div>
 
-                        {/* VISIBLE MOUTH VISEME LIP-SYNC OVERLAY (DRIVEN BY AUTHENTIC AUDIO RMS) */}
+                        {/* VISIBLE MOUTH VISEME LIP-SYNC OVERLAY (DRIVEN BY AUTHENTIC AUDIO RMS & SPEECH SYNTHESIS) */}
                         <div
-                          className="absolute bottom-[23%] left-[49%] -translate-x-1/2 pointer-events-none transition-all duration-75 flex items-center justify-center z-20"
+                          className="absolute bottom-[28%] left-[51%] -translate-x-1/2 pointer-events-none transition-all duration-75 flex items-center justify-center z-20"
                           style={{
-                            width: `${26 + mouthScale * 9}px`,
-                            height: `${Math.max(4, 20 * mouthScale)}px`,
+                            width: `${24 + mouthScale * 14}px`,
+                            height: `${Math.max(3, 16 * mouthScale)}px`,
                             opacity: isSpeaking && mouthScale > 0.05 ? 0.95 : 0,
                           }}
                         >
                           <div
-                            className="w-full h-full rounded-[45%] bg-[#1a0a08] border border-[#3b1712] shadow-inner"
+                            className="w-full h-full rounded-[45%] bg-[#1c0806] border border-[#4a1a14] shadow-inner"
                             style={{
-                              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.85)',
-                              transform: `scaleY(${0.7 + mouthScale * 0.7}) scaleX(${0.9 + mouthScale * 0.25})`,
+                              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.9)',
+                              transform: `scaleY(${0.7 + mouthScale * 0.8}) scaleX(${0.85 + mouthScale * 0.3})`,
                             }}
                           ></div>
                         </div>
