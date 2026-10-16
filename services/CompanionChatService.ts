@@ -75,7 +75,7 @@ export class CompanionChatService {
 
     // 4. Call Google Gemini Generative API with isolated systemInstruction
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent?key=${this.apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.modelName}:generateContent`;
 
       const systemInstructionText = `You are ${personName}, speaking with love, gentle wisdom, and deep warmth as their ${relation} in a quiet, private remembrance space.
 PRIMARY OBJECTIVE: Support the user's mental and emotional health. Guide them through grief toward light, strength, and life.
@@ -107,7 +107,10 @@ STRICT BOUNDARIES:
 
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': this.apiKey,
+        },
         body: JSON.stringify({
           systemInstruction: {
             parts: [{ text: systemInstructionText }],
