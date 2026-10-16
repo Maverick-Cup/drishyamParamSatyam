@@ -45,8 +45,12 @@ import {
   VideoCamera,
   Check,
   FileText,
-  Camera
+  Camera,
+  Phone,
+  GearSix,
+  Warning
 } from '@phosphor-icons/react';
+import { CRISIS_DIRECTORIES } from '@/config/crisisHelplines';
 
 interface ChatMessage {
   id: string;
@@ -242,6 +246,20 @@ export default function PresenceGriefTechPage() {
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const audioSourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioRafIdRef = useRef<number | null>(null);
+
+  // Persistent 1:1 Voice Profile Binding State
+  const [boundVoiceId, setBoundVoiceId] = useState<string>('EXAVITQu4vr4xnSDxMaL');
+  const [boundVoiceName, setBoundVoiceName] = useState<string>('Thomas (Cloned Voice)');
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [voiceCustomSample, setVoiceCustomSample] = useState<File | null>(null);
+  const [voiceConsentGiven, setVoiceConsentGiven] = useState<boolean>(true);
+  const [isCloningVoice, setIsCloningVoice] = useState<boolean>(false);
+  const [voiceBindingSuccess, setVoiceBindingSuccess] = useState<string>('');
+
+  // Multi-Region Crisis Safety Modal State
+  const [isCrisisModalOpen, setIsCrisisModalOpen] = useState<boolean>(false);
+  const [selectedCrisisRegion, setSelectedCrisisRegion] = useState<string>('IN');
+  const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
 
   // MuseTalk 1.5 Video Synthesis Integration State
   const [isMuseTalkPanelOpen, setIsMuseTalkPanelOpen] = useState<boolean>(false);
@@ -987,7 +1005,7 @@ export default function PresenceGriefTechPage() {
     conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [conversations]);
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     const text = messageInput.trim();
     if (!text) return;
@@ -1003,14 +1021,28 @@ export default function PresenceGriefTechPage() {
 
     setConversations((prev) => [...prev, newMsg]);
     setMessageInput('');
+    setIsAiThinking(true);
 
-    setTimeout(() => {
-      const responses = [
-        'That was always such a special moment for us. I wrote about that in my leather notebook back in October 2018.',
-        'You always noticed the little things, Maya. Thank you for holding onto that memory today.',
-        'I remember how we laughed that afternoon. It brings such calm to look back on it with you.',
-      ];
-      const randomAnswer = responses[Math.floor(Math.random() * responses.length)];
+    try {
+      // 1. Send message to Google Gemini Supportive Chat Engine
+      const chatRes = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text,
+          history: conversations.map((c) => ({ sender: c.sender, text: c.text })),
+          personName: 'Thomas',
+          relation: 'Grandfather',
+        }),
+      });
+
+      const chatData = await chatRes.json();
+      const replyText = chatData.reply || 'I hear you, and I am right here with you.';
+
+      // Check if crisis safety escalation triggered
+      if (chatData.safetyState === 'URGENT') {
+        setIsCrisisModalOpen(true);
+      }
 
       const companionMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -1018,14 +1050,39 @@ export default function PresenceGriefTechPage() {
         author: 'Thomas',
         avatarUrl:
           'https://lh3.googleusercontent.com/aida-public/AB6AXuCPrQZI86P-lCAqlJIQq834CG5Uw4YDsSat59s4pB003oUoGeCWd0n4JR4hbsKz_hgBzz9iol0TwRbldMKGbCQWct5gEjxoYMEdqxzEzJZ6egWSNiQf6KMJaE9Scd4tcg2OXEtKD1_Y3wXWcMWhbITSjrzx_GxKsfoG-s4ognBOH8hS6BtRwF1fHh1etk5Hw3DJaphLSdD15XMvtECGDQVG_qEsFfQC6v6hXv8I5Sg',
-        text: `"${randomAnswer}"`,
-        faithfulnessScore: 'Grounded in vault',
-        audioSnippetLength: '0:07 snippet',
+        text: `"${replyText}"`,
+        faithfulnessScore: 'Grounded & Empathetic',
+        audioSnippetLength: 'Cloned Voice Audio',
       };
 
       setConversations((prev) => [...prev, companionMsg]);
-      speakText(randomAnswer);
-    }, 800);
+      setIsAiThinking(false);
+
+      // 2. Synthesize audio in Thomas's cloned voice via Sync.so and play immediately
+      try {
+        const speakRes = await fetch('/api/voice/speak', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: replyText,
+            voiceId: boundVoiceId,
+          }),
+        });
+
+        const speakData = await speakRes.json();
+        if (speakData.success && speakData.audioUrl) {
+          playAuthenticVoiceAudio(speakData.audioUrl);
+        } else {
+          speakText(replyText);
+        }
+      } catch (voiceErr) {
+        speakText(replyText);
+      }
+    } catch (err: any) {
+      console.warn('Chat interaction error:', err);
+      setIsAiThinking(false);
+      speakText('I am right here listening to you. Take a gentle breath with me.');
+    }
   };
 
   return (
@@ -1106,6 +1163,22 @@ export default function PresenceGriefTechPage() {
             <ShieldCheck className="text-amber-400 text-sm" />
             <span className="font-medium tracking-tight">Private &amp; Grounded</span>
           </div>
+          <button
+            onClick={() => setIsCrisisModalOpen(true)}
+            className="px-2.5 py-1 rounded-full bg-rose-950/80 hover:bg-rose-900/80 text-xs text-rose-300 border border-rose-700/60 flex items-center gap-1.5 transition shadow-sm"
+            title="Open multi-region crisis & mental health helplines"
+          >
+            <Phone className="text-rose-400" />
+            <span className="hidden lg:inline">Helplines</span>
+          </button>
+          <button
+            onClick={() => setIsVoiceModalOpen(true)}
+            className="px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
+            title="Manage 1:1 Voice Profile"
+          >
+            <Microphone className="text-amber-400" />
+            <span className="hidden lg:inline">Voice: {boundVoiceName.slice(0, 14)}...</span>
+          </button>
           <button
             onClick={() => setIsBreathingModalOpen(true)}
             className="px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
@@ -2132,6 +2205,236 @@ export default function PresenceGriefTechPage() {
               className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition"
             >
               Return to Session
+            </button>
+          </div>
+        </div>
+      )}
+      {/* PERSISTENT 1:1 VOICE PROFILE BINDING MODAL */}
+      {isVoiceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel max-w-lg w-full rounded-3xl p-6 border border-cyan-500/40 text-left relative shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setIsVoiceModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg"
+            >
+              <X />
+            </button>
+
+            <div className="border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <Microphone className="text-xl text-amber-400" />
+                <h3 className="text-lg font-serif text-slate-100">Voice Profile: Thomas</h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Persistent 1-to-1 voice binding. Every conversation response uses this cloned voice.
+              </p>
+            </div>
+
+            {/* Current Active Voice Status */}
+            <div className="p-3.5 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
+              <div>
+                <p className="text-xs text-slate-400">Current Active Voice</p>
+                <p className="text-sm font-semibold text-slate-200">{boundVoiceName}</p>
+                <p className="text-[11px] font-mono text-cyan-400 truncate max-w-xs">{boundVoiceId}</p>
+              </div>
+              <span className="text-[10px] px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-600/50 text-emerald-300 font-mono">
+                1:1 Linked
+              </span>
+            </div>
+
+            {voiceBindingSuccess && (
+              <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-600/40 text-emerald-200 text-xs flex items-center gap-2">
+                <CheckCircle className="text-emerald-400 shrink-0" />
+                <span>{voiceBindingSuccess}</span>
+              </div>
+            )}
+
+            {/* Option A: Enter / Select Pre-Cloned Voice ID */}
+            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800">
+              <span className="text-xs font-semibold text-slate-300">Option A: Link Existing Voice ID / Sample</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter Sync Voice ID (e.g. EXAVITQu4vr4xnSDxMaL)..."
+                  defaultValue={boundVoiceId}
+                  id="directVoiceInput"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                />
+                <button
+                  onClick={async () => {
+                    const inputEl = document.getElementById('directVoiceInput') as HTMLInputElement;
+                    const val = inputEl?.value?.trim();
+                    if (!val) return;
+                    setBoundVoiceId(val);
+                    setBoundVoiceName('Thomas (Linked Voice)');
+                    setVoiceBindingSuccess('Voice ID successfully bound to Thomas!');
+                    setTimeout(() => setVoiceBindingSuccess(''), 3000);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition"
+                >
+                  Bind
+                </button>
+              </div>
+            </div>
+
+            {/* Option B: Upload New Audio Sample & Clone */}
+            <div className="space-y-3 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800">
+              <span className="text-xs font-semibold text-slate-300">Option B: Upload New Audio Recording (Clone)</span>
+              <p className="text-[11px] text-slate-400">
+                Upload a 30-second to 2-minute clean audio recording of Thomas speaking to generate a new cloned voice profile.
+              </p>
+              <input
+                type="file"
+                accept="audio/*,video/*"
+                onChange={(e) => setVoiceCustomSample(e.target.files?.[0] || null)}
+                className="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+              />
+
+              <label className="flex items-start gap-2 pt-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={voiceConsentGiven}
+                  onChange={(e) => setVoiceConsentGiven(e.target.checked)}
+                  className="mt-0.5 rounded border-slate-700 bg-slate-900 text-cyan-500 focus:ring-0"
+                />
+                <span className="text-[11px] text-slate-400 leading-tight">
+                  I confirm I hold legal consent or estate authority to clone and synthesize this speaker&apos;s voice for therapeutic family remembrance.
+                </span>
+              </label>
+
+              <button
+                disabled={!voiceCustomSample || !voiceConsentGiven || isCloningVoice}
+                onClick={async () => {
+                  if (!voiceCustomSample) return;
+                  setIsCloningVoice(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append('personId', 'person-thomas');
+                    fd.append('voiceName', `Thomas (${voiceCustomSample.name})`);
+                    fd.append('consented', 'true');
+                    fd.append('sample', voiceCustomSample);
+
+                    const res = await fetch('/api/voice/clone', { method: 'POST', body: fd });
+                    const data = await res.json();
+                    if (data.success && data.profile) {
+                      setBoundVoiceId(data.profile.voiceId);
+                      setBoundVoiceName(data.profile.voiceName);
+                      setVoiceBindingSuccess('New voice clone successfully created and bound!');
+                      setTimeout(() => setVoiceBindingSuccess(''), 3500);
+                    } else {
+                      alert(data.error || 'Failed to clone voice sample.');
+                    }
+                  } catch (e: any) {
+                    alert(e.message || 'Clone error');
+                  } finally {
+                    setIsCloningVoice(false);
+                  }
+                }}
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-500 hover:to-purple-500 text-white text-xs font-semibold disabled:opacity-50 transition"
+              >
+                {isCloningVoice ? 'Uploading & Cloning Voice Sample...' : 'Clone & Bind to Thomas'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MULTI-REGION CRISIS & MENTAL HEALTH HELPLINE MODAL */}
+      {isCrisisModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel max-w-xl w-full rounded-3xl p-6 border border-rose-500/40 text-left relative shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setIsCrisisModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg"
+            >
+              <X />
+            </button>
+
+            <div className="flex items-center gap-3 border-b border-rose-500/20 pb-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-300 text-xl">
+                <Heartbeat />
+              </div>
+              <div>
+                <h3 className="text-lg font-serif text-slate-100">You Are Not Alone</h3>
+                <p className="text-xs text-rose-300">
+                  Free, confidential support is available 24/7. Please reach out to someone who can help.
+                </p>
+              </div>
+            </div>
+
+            {/* Region Selector Tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {Object.values(CRISIS_DIRECTORIES).map((reg) => (
+                <button
+                  key={reg.countryCode}
+                  onClick={() => setSelectedCrisisRegion(reg.countryCode)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition flex items-center gap-1.5 ${
+                    selectedCrisisRegion === reg.countryCode
+                      ? 'bg-rose-950 text-rose-200 border border-rose-600/60 shadow'
+                      : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+                  }`}
+                >
+                  <span>{reg.flag}</span>
+                  <span>{reg.countryName}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Contacts for Selected Region */}
+            {CRISIS_DIRECTORIES[selectedCrisisRegion] && (
+              <div className="space-y-2.5">
+                <div className="p-3 rounded-2xl bg-rose-950/40 border border-rose-800/40 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-rose-400 uppercase tracking-wider font-semibold">Immediate Emergency</span>
+                    <p className="text-sm font-bold text-slate-100">National Emergency Dispatch</p>
+                  </div>
+                  <a
+                    href={`tel:${CRISIS_DIRECTORIES[selectedCrisisRegion].emergencyNumber}`}
+                    className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs shadow flex items-center gap-1.5"
+                  >
+                    <Phone /> Call {CRISIS_DIRECTORIES[selectedCrisisRegion].emergencyNumber}
+                  </a>
+                </div>
+
+                {CRISIS_DIRECTORIES[selectedCrisisRegion].contacts.map((contact, idx) => (
+                  <div key={idx} className="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-slate-200">{contact.name}</span>
+                        <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono ${
+                          contact.type === 'GOVERNMENT'
+                            ? 'bg-cyan-950/80 border border-cyan-800/50 text-cyan-300'
+                            : 'bg-purple-950/80 border border-purple-800/50 text-purple-300'
+                        }`}>
+                          {contact.type}
+                        </span>
+                      </div>
+                      <a
+                        href={`tel:${contact.number}`}
+                        className="px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-mono font-medium transition"
+                      >
+                        {contact.displayNumber}
+                      </a>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{contact.description}</p>
+                    <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-1">
+                      <span>Hours: {contact.availableHours}</span>
+                      {contact.website && (
+                        <a href={contact.website} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:underline">
+                          Official Website &rarr;
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => setIsCrisisModalOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-300 transition"
+            >
+              Close Helplines
             </button>
           </div>
         </div>
