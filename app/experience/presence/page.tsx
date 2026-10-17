@@ -1567,7 +1567,12 @@ export default function PresenceGriefTechPage() {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setConversations(parsed);
+          const synced = parsed.map((m: any) =>
+            m.sender === 'user'
+              ? { ...m, author: userProfile.displayName || m.author, avatarUrl: userProfile.avatarUrl || m.avatarUrl }
+              : m
+          );
+          setConversations(synced);
           isChatHydratedRef.current = true;
           return;
         }
@@ -2820,8 +2825,12 @@ export default function PresenceGriefTechPage() {
                           </div>
                         )}
                       </div>
-                      <div className="w-7 h-7 rounded-full bg-slate-700 overflow-hidden shrink-0 mt-0.5">
-                        <img alt={msg.author} className="w-full h-full object-cover" src={msg.avatarUrl} />
+                      <div className="w-7 h-7 rounded-full bg-slate-700 overflow-hidden shrink-0 mt-0.5 ring-1 ring-cyan-500/30">
+                        <img
+                          alt={userProfile.displayName || msg.author}
+                          className="w-full h-full object-cover"
+                          src={userProfile.avatarUrl || msg.avatarUrl}
+                        />
                       </div>
                     </div>
                   ) : (
