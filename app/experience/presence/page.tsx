@@ -1190,24 +1190,65 @@ export default function PresenceGriefTechPage() {
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
     const voices = window.speechSynthesis.getVoices();
-    // Prefer warm Indian-English / Hindi-inflected or natural male voice matching the bound companion
+    // Strictly filter out female voice names to match the male elder persona (Rajesh Bade Papa / Prof. Anand Sharma)
+    const isFemaleVoice = (name: string) => {
+      const lower = name.toLowerCase();
+      return (
+        lower.includes('female') ||
+        lower.includes('zira') ||
+        lower.includes('hazel') ||
+        lower.includes('heera') ||
+        lower.includes('samantha') ||
+        lower.includes('victoria') ||
+        lower.includes('karen') ||
+        lower.includes('moira') ||
+        lower.includes('fiona') ||
+        lower.includes('tessa') ||
+        lower.includes('veena') ||
+        lower.includes('kalpana') ||
+        lower.includes('swara') ||
+        lower.includes('geeta') ||
+        lower.includes('ananya')
+      );
+    };
+
+    const isMaleVoice = (name: string) => {
+      const lower = name.toLowerCase();
+      return (
+        lower.includes('male') ||
+        lower.includes('prabhat') ||
+        lower.includes('madhur') ||
+        lower.includes('david') ||
+        lower.includes('mark') ||
+        lower.includes('ravi') ||
+        lower.includes('george') ||
+        lower.includes('richard') ||
+        lower.includes('natural')
+      );
+    };
+
+    // Priority 1: Indian-English / Hindi Male voice
+    // Priority 2: Indian-English / Hindi non-female voice
+    // Priority 3: English Male voice
+    // Priority 4: Any non-female English voice
+    // Priority 5: Fallback to any voice as last resort
     const preferredVoice =
       voices.find(
-        (v) =>
-          (v.lang === 'en-IN' || v.lang === 'hi-IN') &&
-          (v.name.includes('Male') || v.name.includes('Prabhat') || v.name.includes('Madhur') || v.name.includes('Natural') || v.name.includes('Google'))
+        (v) => (v.lang === 'en-IN' || v.lang === 'hi-IN') && isMaleVoice(v.name)
       ) ||
-      voices.find((v) => v.lang === 'en-IN' || v.lang === 'hi-IN') ||
       voices.find(
-        (v) =>
-          v.lang.startsWith('en') &&
-          (v.name.includes('Natural') || v.name.includes('Male') || v.name.includes('David') || v.name.includes('Google'))
+        (v) => (v.lang === 'en-IN' || v.lang === 'hi-IN') && !isFemaleVoice(v.name)
       ) ||
-      voices.find((v) => v.lang.startsWith('en'));
+      voices.find((v) => v.lang.startsWith('en') && isMaleVoice(v.name)) ||
+      voices.find((v) => v.lang.startsWith('en') && !isFemaleVoice(v.name)) ||
+      voices.find((v) => v.lang === 'en-IN' || v.lang === 'hi-IN') ||
+      voices.find((v) => v.lang.startsWith('en')) ||
+      voices[0];
 
     if (preferredVoice) utterance.voice = preferredVoice;
-    utterance.pitch = 0.92;
-    utterance.rate = 0.94;
+    // Deepen pitch to 0.88 and gentle rate of 0.92 for warm, dignified elder presence
+    utterance.pitch = 0.88;
+    utterance.rate = 0.92;
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -1230,7 +1271,7 @@ export default function PresenceGriefTechPage() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Unified Attached Voice Playback for Chat Messages (#3) & New AI Replies
+  // Unified Attached Voice Playback for Chat Messages & AI Replies (Deterministic Authentic-First Cascade)
   const speakCompanionMessage = async (
     rawText: string,
     isAttachedSample: boolean = false,
@@ -1246,13 +1287,7 @@ export default function PresenceGriefTechPage() {
     const cleanText = rawText.replace(/^"|"$/g, '').trim();
     if (!cleanText) return;
 
-    // If clicking the speaker button on the attached voice sample message and a bound video/audio exists,
-    // play the authentic attached voice directly when using the local reference voice profile
-    if (isAttachedSample && !activeAudioUrl && museTalkVideoUrl && boundVoiceId === 'sync-rajesh-authentic-v2') {
-      playNativeAttachedVideoVoiceOnce();
-      return;
-    }
-
+    // TIER 1: Real-time Cloned TTS via /api/voice/speak
     try {
       const speakRes = await fetch('/api/voice/speak', {
         method: 'POST',
@@ -1273,14 +1308,20 @@ export default function PresenceGriefTechPage() {
       console.warn('Attached voice API fallback:', err);
     }
 
-    // If cloud TTS is disabled or returned fallback:
-    if (isAttachedSample && museTalkVideoUrl && avatarVideoRef.current) {
+    // TIER 2: If attached sample or living video is available, play authentic video voice track with lip-sync
+    if ((isAttachedSample || !activeAudioUrl) && museTalkVideoUrl && avatarVideoRef.current) {
       playNativeAttachedVideoVoiceOnce();
-    } else if (activeAudioUrl && isAttachedSample) {
-      playAuthenticVoiceAudio(activeAudioUrl);
-    } else {
-      speakText(cleanText);
+      return;
     }
+
+    // TIER 3: If an authentic audio snippet is loaded in the vault, play that authentic recording
+    if (activeAudioUrl) {
+      playAuthenticVoiceAudio(activeAudioUrl);
+      return;
+    }
+
+    // TIER 4: Persona-Matched Web Speech API Fallback (Strict Male Pitch & Indian/Hindi Inflection)
+    speakText(cleanText);
   };
 
   // Companion Voice Waveform Canvas Animation
@@ -1463,6 +1504,99 @@ export default function PresenceGriefTechPage() {
     return () => clearInterval(interval);
   }, [isBreathingModalOpen]);
 
+  // Dynamic Initial Conversation Seeding & LocalStorage Persistence
+  const chatStorageKey = `presence_chat_${personaProfile.id}`;
+  const isChatHydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 1. Try reading saved conversations from localStorage for this specific elder
+    const saved = localStorage.getItem(chatStorageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConversations(parsed);
+          isChatHydratedRef.current = true;
+          return;
+        }
+      } catch (e) {
+        console.warn('Failed to parse saved chat history:', e);
+      }
+    }
+
+    // 2. If no persisted chat exists, dynamically seed from the elder's verified memory vault
+    if (!isChatHydratedRef.current && verifiedMemoryRecords.length > 0) {
+      const topMemory = verifiedMemoryRecords[0];
+      const initialUserQuery = `Do you remember "${topMemory.title}"? It is one of the most cherished memories in our family vault.`;
+      const initialCompanionAnswer = `"${topMemory.reviewedText} Tell me, what is on your heart today?"`;
+
+      setConversations([
+        {
+          id: `seed-user-${personaProfile.id}`,
+          sender: 'user',
+          author: userProfile.displayName || 'Maya',
+          avatarUrl: userProfile.avatarUrl,
+          text: initialUserQuery,
+        },
+        {
+          id: `seed-companion-${personaProfile.id}`,
+          sender: 'companion',
+          author: companionPersonName,
+          avatarUrl: activePortraitUrl,
+          text: initialCompanionAnswer,
+          faithfulnessScore: '100% verified',
+          audioSnippetLength: 'Attached Voice',
+          isAttachedVoiceSample: true,
+        },
+      ]);
+      isChatHydratedRef.current = true;
+    }
+  }, [chatStorageKey, verifiedMemoryRecords, companionPersonName, activePortraitUrl, userProfile]);
+
+  // Persist conversations to localStorage whenever updated
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isChatHydratedRef.current && conversations.length > 0) {
+      try {
+        localStorage.setItem(chatStorageKey, JSON.stringify(conversations));
+      } catch (e) {
+        console.warn('Failed to persist chat conversations:', e);
+      }
+    }
+  }, [conversations, chatStorageKey]);
+
+  // Handler to clear / reset conversation to initial state
+  const handleClearConversation = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(chatStorageKey);
+    if (verifiedMemoryRecords.length > 0) {
+      const topMemory = verifiedMemoryRecords[0];
+      setConversations([
+        {
+          id: `seed-user-${personaProfile.id}-${Date.now()}`,
+          sender: 'user',
+          author: userProfile.displayName || 'Maya',
+          avatarUrl: userProfile.avatarUrl,
+          text: `Do you remember "${topMemory.title}"? It is one of the most cherished memories in our family vault.`,
+        },
+        {
+          id: `seed-companion-${personaProfile.id}-${Date.now()}`,
+          sender: 'companion',
+          author: companionPersonName,
+          avatarUrl: activePortraitUrl,
+          text: `"${topMemory.reviewedText} Tell me, what is on your heart today?"`,
+          faithfulnessScore: '100% verified',
+          audioSnippetLength: 'Attached Voice',
+          isAttachedVoiceSample: true,
+        },
+      ]);
+    } else {
+      setConversations([]);
+    }
+  };
+
   // Auto scroll chat to bottom
   useEffect(() => {
     conversationEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1533,17 +1667,18 @@ export default function PresenceGriefTechPage() {
         text: displayMessageText,
         faithfulnessScore: indicModeEnabled ? 'Vernacular Grounded' : 'Grounded & Empathetic',
         audioSnippetLength: indicModeEnabled ? 'Indic Dialect Voice' : 'Attached Voice',
+        isAttachedVoiceSample: true,
       };
 
       setConversations((prev) => [...prev, companionMsg]);
       setIsAiThinking(false);
 
       // 2. Synthesize audio in attached companion's voice and animate avatar only while speaking
-      await speakCompanionMessage(finalSpokenText, false, true);
+      await speakCompanionMessage(finalSpokenText, true, true);
     } catch (err: any) {
       console.warn('Chat interaction error:', err);
       setIsAiThinking(false);
-      await speakCompanionMessage('I am right here listening to you. Take a gentle breath with me.', false, true);
+      await speakCompanionMessage('I am right here listening to you. Take a gentle breath with me.', true, true);
     }
   };
 
@@ -2586,11 +2721,22 @@ export default function PresenceGriefTechPage() {
             {/* Conversation Stream */}
             <section className="flex-1 flex flex-col justify-end px-4 lg:px-8 pb-5 max-w-3xl w-full mx-auto relative z-10">
               <div className="space-y-4 mb-4 overflow-y-auto max-h-[280px] lg:max-h-[300px] pr-2">
-                <div className="flex items-center justify-center">
+                <div className="flex items-center justify-between gap-2 px-1">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-500/20 text-[11px] text-cyan-300 shadow-sm">
                     <Bookmark className="text-cyan-400" />
                     <span>[Grounded in: {companionPersonName}&apos;s Verified Family Memory Vault]</span>
                   </div>
+                  {conversations.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleClearConversation}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-900/80 hover:bg-rose-950/40 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-900/40 text-[11px] transition shadow-sm"
+                      title="Reset conversation back to vault memory opener"
+                    >
+                      <ArrowsClockwise className="text-xs" />
+                      <span className="hidden sm:inline">Reset Chat</span>
+                    </button>
+                  )}
                 </div>
 
                 {conversations.map((msg) =>
