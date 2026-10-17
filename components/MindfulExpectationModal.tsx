@@ -21,7 +21,7 @@ export interface MindfulExpectationModalProps {
   onEnterPortal?: () => void;
 }
 
-interface StorySlide {
+export interface StorySlide {
   id: number;
   chapterBadge: string;
   headline: string;
@@ -31,7 +31,7 @@ interface StorySlide {
   accentColor: string;
 }
 
-const STORY_SLIDES: StorySlide[] = [
+export const STORY_SLIDES: StorySlide[] = [
   {
     id: 1,
     chapterBadge: 'Chapter I • The Question',
