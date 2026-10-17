@@ -1,0 +1,18 @@
+# PARAMSATHYA-SEC-001 — Pre-Commit & Pre-Push Secret Protection
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: Gitleaks Secret Detection (Pre-Commit)
+        args: ["git", "--pre-commit", "--redact=100", "--staged", "--verbose"]
+
+  - repo: local
+    hooks:
+      - id: paramsathya-exact-exposure-audit
+        name: ParamSathya Exact-Value & Static Exposure Audit
+        entry: node scripts/security/secret-exposure-audit.mjs
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit, pre-push]

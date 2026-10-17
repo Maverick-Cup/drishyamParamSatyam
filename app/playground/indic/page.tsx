@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -11,26 +11,50 @@ import {
   CheckCircle,
   WarningCircle,
   Copy,
-  Microphone,
-  SlidersHorizontal,
-  Sparkle
+  VideoCamera,
+  Sparkle,
+  X,
 } from '@phosphor-icons/react';
-import { INDIC_LANGUAGES, IndicLanguageConfig } from '@/config/indicLanguages';
+import {
+  INDIC_LANGUAGES,
+  INDIC_QUICK_PROMPTS,
+  IndicLanguageConfig,
+  HonorificRegister,
+} from '@/config/indicLanguages';
 
 export default function IndicLanguagePage() {
   const [selectedLang, setSelectedLang] = useState<IndicLanguageConfig>(INDIC_LANGUAGES[0]);
-  const [inputText, setInputText] = useState<string>(
-    "I'm feeling a bit overwhelmed today, but remembering your gentle advice gives me strength."
-  );
+  const [honorificRegister, setHonorificRegister] = useState<HonorificRegister>('respectful');
+  const [companionName, setCompanionName] = useState<string>('Prof. Anand Sharma');
+  const [inputText, setInputText] = useState<string>(INDIC_QUICK_PROMPTS[0].text);
   const [translatedText, setTranslatedText] = useState<string>('');
+  const [translationMode, setTranslationMode] = useState<'LIVE_GEMINI' | 'SYNTHETIC_FALLBACK' | null>(null);
   const [isTranslating, setIsTranslating] = useState<boolean>(false);
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
 
-  const handleTranslate = async () => {
-    if (!inputText.trim()) return;
+  useEffect(() => {
+    try {
+      const boundRaw = localStorage.getItem('paramsathya_bound_companion');
+      if (boundRaw) {
+        const parsed = JSON.parse(boundRaw);
+        if (parsed?.personName) {
+          setCompanionName(parsed.personName);
+        }
+      }
+    } catch {
+      // Keep default companion name
+    }
+  }, []);
+
+  const handleTranslate = async (overrideLang?: IndicLanguageConfig, overrideRegister?: HonorificRegister, overrideText?: string) => {
+    const langToUse = overrideLang || selectedLang;
+    const registerToUse = overrideRegister || honorificRegister;
+    const textToUse = overrideText !== undefined ? overrideText : inputText;
+
+    if (!textToUse.trim()) return;
     setIsTranslating(true);
     setErrorMessage(null);
     setStatusMessage(null);
@@ -40,9 +64,10 @@ export default function IndicLanguagePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: inputText,
-          targetLanguage: selectedLang.code,
+          text: textToUse,
+          targetLanguage: langToUse.code,
           sourceLanguage: 'en',
+          honorificRegister: registerToUse,
         }),
       });
 
@@ -52,7 +77,18 @@ export default function IndicLanguagePage() {
       }
 
       setTranslatedText(data.translatedText || '');
-      setStatusMessage(`Translated into ${selectedLang.name} (${selectedLang.nativeName})`);
+      setTranslationMode(data.mode || 'LIVE_GEMINI');
+      const modeBadge =
+        data.mode === 'SYNTHETIC_FALLBACK'
+          ? ' • Synthetic Cultural Register (Quota-Safe)'
+          : ' • Gemini Live';
+      setStatusMessage(
+        `Translated into ${langToUse.name} (${langToUse.nativeName}) [${
+          registerToUse === 'respectful'
+            ? langToUse.honorifics.respectfulLabel
+            : langToUse.honorifics.familiarLabel
+        }]${modeBadge}`
+      );
     } catch (err: any) {
       setErrorMessage(err.message || 'Error occurred during translation');
     } finally {
@@ -60,8 +96,12 @@ export default function IndicLanguagePage() {
     }
   };
 
-  const handleSpeak = async (textToSpeak: string) => {
-    const text = textToSpeak || translatedText || selectedLang.samplePrompt;
+  const handleSpeak = async (textToSpeak?: string) => {
+    const text =
+      textToSpeak ||
+      translatedText ||
+      selectedLang.syntheticSamples['1'][honorificRegister] ||
+      selectedLang.samplePrompt;
     if (!text) return;
 
     setIsSpeaking(true);
@@ -92,11 +132,10 @@ export default function IndicLanguagePage() {
         await audio.play();
         setStatusMessage(`Playing audio via ${selectedLang.name} voice`);
       } else {
-        // Fallback to browser Web Speech API
         fallbackBrowserSpeech(text, selectedLang.speechSynthesisTag);
         setStatusMessage(`Spoken via browser speech engine (${selectedLang.speechSynthesisTag})`);
       }
-    } catch (err: any) {
+    } catch {
       fallbackBrowserSpeech(text, selectedLang.speechSynthesisTag);
       setStatusMessage(`Browser speech fallback active (${selectedLang.speechSynthesisTag})`);
     }
@@ -126,192 +165,308 @@ export default function IndicLanguagePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#070b12]/85 text-slate-200 p-6 flex flex-col font-sans relative z-10">
-      {/* HEADER WITH BACK TO PRESENCE & TOGGLE BACK TO MUSETALK */}
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-4 mb-6">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/experience/presence"
-            className="text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 text-xs bg-slate-900/80 px-3 py-1.5 rounded-full border border-slate-800"
-          >
-            <ArrowLeft className="text-sm" />
-            <span>Back to Presence</span>
-          </Link>
-          <div className="h-4 w-px bg-slate-800"></div>
-          <div>
-            <h1 className="text-lg font-semibold text-slate-100 flex items-center gap-2">
-              Indic Language Support &amp; Neural TTS
-              <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-amber-950/70 border border-amber-700/50 text-amber-300">
-                11 Regional Languages
-              </span>
-            </h1>
-            <p className="text-xs text-slate-400">
-              Live translation and culturally attuned voice synthesis for cross-generational remembrance.
-            </p>
+    <div className="min-h-screen bg-[#0a0c10] text-slate-200 p-4 md:p-8 flex flex-col items-center font-sans relative z-10">
+      {/* STUDIO CONTAINER MATCHING SCREENSHOT DESIGN */}
+      <div className="w-full max-w-6xl bg-[#0e1015] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+        {/* TOP HEADER BAR */}
+        <header className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-b border-white/10 bg-[#12141b]">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 rounded-xl bg-amber-950/60 border border-amber-600/30 flex items-center justify-center text-amber-400 shadow-inner">
+              <Translate className="text-xl" weight="bold" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="text-lg md:text-xl font-bold text-white tracking-tight">
+                  Indic Language &amp; Dialect Studio
+                </h1>
+                <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-amber-950/70 border border-amber-600/40 text-amber-400">
+                  gemini-2.5-flash + synthetic-register
+                </span>
+                <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-950/60 border border-emerald-600/40 text-emerald-300">
+                  {INDIC_LANGUAGES.length} Dialects &amp; Languages
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Translating for <span className="text-slate-200 font-medium">{companionName}</span> with authentic{' '}
+                <span className="text-amber-300 font-medium">{selectedLang.name}</span> honorifics and Indic vernacular registers
+              </p>
+            </div>
           </div>
-        </div>
 
-        {/* TOGGLE BUTTON: Takes user to MuseTalk 1.5 playground */}
-        <div className="flex items-center gap-3">
-          <Link
-            href="/playground/musetalk"
-            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-850 border border-purple-500/40 text-purple-300 hover:text-purple-200 text-xs font-medium transition shadow-sm"
-          >
-            <SlidersHorizontal className="text-sm text-purple-400" />
-            <span>Switch to MuseTalk 1.5</span>
-          </Link>
-        </div>
-      </header>
+          <div className="flex items-center gap-2.5">
+            <Link
+              href="/playground/sync"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-950/50 hover:bg-emerald-900/50 border border-emerald-600/40 text-emerald-300 text-xs font-medium transition"
+            >
+              <VideoCamera className="text-sm text-emerald-400" />
+              <span>Sync 2 Pro Studio</span>
+            </Link>
+            <Link
+              href="/experience/presence"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-white/10 text-slate-300 hover:text-white text-xs font-medium transition"
+              title="Return to Presence Companion"
+            >
+              <ArrowLeft className="text-sm" />
+              <span>Back to Presence</span>
+            </Link>
+            <Link
+              href="/experience/presence"
+              aria-label="Close Indic Language Studio"
+              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition"
+            >
+              <X className="text-base" />
+            </Link>
+          </div>
+        </header>
 
-      {/* LANGUAGE SELECTOR PILLS */}
-      <div className="mb-6">
-        <label className="text-xs text-slate-400 uppercase tracking-wider mb-2.5 block font-semibold">
-          Select Target Indic Language:
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {INDIC_LANGUAGES.map((lang) => {
-            const isSelected = selectedLang.code === lang.code;
-            return (
+        <div className="p-6 space-y-6">
+          {/* SELECT TARGET INDIC LANGUAGE / DIALECT GRID */}
+          <div>
+            <label className="text-[11px] text-slate-400 uppercase tracking-widest mb-3 block font-bold">
+              SELECT TARGET INDIC LANGUAGE / DIALECT
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {INDIC_LANGUAGES.map((lang) => {
+                const isSelected = selectedLang.code === lang.code;
+                return (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => {
+                      setSelectedLang(lang);
+                      setTranslatedText('');
+                    }}
+                    className={`text-left p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                      isSelected
+                        ? 'bg-amber-950/25 border-amber-500/80 shadow-lg shadow-amber-500/10'
+                        : 'bg-[#13161f]/90 border-white/10 hover:border-white/25 hover:bg-[#171b26]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2 w-full">
+                      <span
+                        className={`text-sm font-bold ${
+                          isSelected ? 'text-white' : 'text-slate-200'
+                        }`}
+                      >
+                        {lang.name}
+                      </span>
+                      <span className="text-sm font-semibold text-amber-400">
+                        {lang.nativeName}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 mt-1.5 block">
+                      {lang.region}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* HONORIFIC REGISTER BAR */}
+          <div className="flex flex-wrap items-center justify-between gap-4 px-4 py-3 rounded-xl bg-[#13161f] border border-white/10">
+            <div className="flex items-center gap-2 text-xs text-slate-200">
+              <Sparkle className="text-amber-400 text-base" weight="fill" />
+              <span className="font-medium">{selectedLang.name} Honorific Register:</span>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">
+                ({selectedLang.region} • {selectedLang.script} script)
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1.5 bg-[#0b0d13] p-1 rounded-lg border border-white/10">
               <button
-                key={lang.code}
+                type="button"
                 onClick={() => {
-                  setSelectedLang(lang);
-                  setTranslatedText('');
+                  setHonorificRegister('respectful');
+                  if (translatedText) {
+                    handleTranslate(selectedLang, 'respectful', inputText);
+                  }
                 }}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/60 shadow-md shadow-amber-500/10'
-                    : 'bg-slate-900/60 text-slate-400 border border-white/5 hover:border-slate-700 hover:text-slate-200'
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  honorificRegister === 'respectful'
+                    ? 'bg-amber-950/80 text-amber-300 border border-amber-600/50 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <span className="font-semibold">{lang.nativeName}</span>
-                <span className="text-[11px] opacity-75 font-mono">({lang.name})</span>
+                {selectedLang.honorifics.respectfulLabel}
               </button>
-            );
-          })}
+              <button
+                type="button"
+                onClick={() => {
+                  setHonorificRegister('familiar');
+                  if (translatedText) {
+                    handleTranslate(selectedLang, 'familiar', inputText);
+                  }
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${
+                  honorificRegister === 'familiar'
+                    ? 'bg-amber-950/80 text-amber-300 border border-amber-600/50 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {selectedLang.honorifics.familiarLabel}
+              </button>
+            </div>
+          </div>
+
+          {/* ENGLISH QUERY OR MEMORY PROMPT */}
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label className="text-[11px] text-slate-300 uppercase tracking-widest font-bold">
+                ENGLISH QUERY OR MEMORY PROMPT
+              </label>
+              <div className="flex items-center gap-2 text-xs text-slate-400">
+                <span>Quick Prompts:</span>
+                {INDIC_QUICK_PROMPTS.map((q) => (
+                  <button
+                    key={q.id}
+                    type="button"
+                    onClick={() => {
+                      setInputText(q.text);
+                      handleTranslate(selectedLang, honorificRegister, q.text);
+                    }}
+                    className={`px-2 py-0.5 rounded font-mono text-xs underline underline-offset-4 transition ${
+                      inputText === q.text
+                        ? 'text-amber-400 font-bold'
+                        : 'text-slate-400 hover:text-amber-300'
+                    }`}
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <textarea
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              rows={4}
+              placeholder="Grandfather, do you remember our morning walks near the river?"
+              className="w-full bg-[#12151e] border border-white/10 rounded-xl p-4 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/70 resize-y font-sans"
+            />
+
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <span className="text-[11px] text-slate-500 font-mono">
+                {inputText.length} / 1500 chars • BCP-47 Voice Tag: {selectedLang.speechSynthesisTag}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleTranslate()}
+                disabled={isTranslating || !inputText.trim()}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs md:text-sm flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-amber-500/20"
+              >
+                {isTranslating ? (
+                  <>
+                    <ArrowsClockwise className="text-base animate-spin" />
+                    <span>Translating to {selectedLang.name}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkle className="text-base" weight="fill" />
+                    <span>Translate to {selectedLang.name}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* TRANSLATED OUTPUT & VOICE SYNTHESIS SECTION */}
+          <div className="bg-[#12151e] border border-white/10 rounded-xl p-5 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <SpeakerHigh className="text-amber-400 text-lg" />
+                <h2 className="text-sm font-bold text-white">
+                  {selectedLang.name} ({selectedLang.nativeName}) Vernacular Output &amp; Speech Synthesis
+                </h2>
+                {translationMode === 'SYNTHETIC_FALLBACK' && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-950/80 border border-amber-700/50 text-amber-300">
+                    Synthetic Cultural Register (Quota-Safe)
+                  </span>
+                )}
+                {translationMode === 'LIVE_GEMINI' && (
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950/80 border border-emerald-700/50 text-emerald-300">
+                    Live Gemini Translation
+                  </span>
+                )}
+              </div>
+
+              {translatedText && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(translatedText);
+                    setStatusMessage('Copied translation to clipboard!');
+                  }}
+                  className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1 bg-slate-900 px-2.5 py-1 rounded-lg border border-white/10"
+                >
+                  <Copy className="text-xs" />
+                  <span>Copy</span>
+                </button>
+              )}
+            </div>
+
+            <div className="min-h-[96px] bg-[#0b0d13] border border-white/10 rounded-xl p-4 flex flex-col justify-center">
+              {translatedText ? (
+                <p className="text-base md:text-lg text-amber-100 leading-relaxed font-medium">
+                  {translatedText}
+                </p>
+              ) : (
+                <div className="text-xs text-slate-400 space-y-1">
+                  <p className="text-slate-300 font-medium">
+                    Sample ({selectedLang.honorifics[honorificRegister === 'respectful' ? 'respectfulLabel' : 'familiarLabel']}):
+                  </p>
+                  <p className="text-sm text-amber-200/90">
+                    {selectedLang.syntheticSamples['1'][honorificRegister]}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-slate-400">
+                {statusMessage && (
+                  <span className="inline-flex items-center gap-1.5 text-emerald-300">
+                    <CheckCircle className="text-sm text-emerald-400" />
+                    {statusMessage}
+                  </span>
+                )}
+                {errorMessage && (
+                  <span className="inline-flex items-center gap-1.5 text-rose-300">
+                    <WarningCircle className="text-sm text-rose-400" />
+                    {errorMessage}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleSpeak(
+                      translatedText || selectedLang.syntheticSamples['1'][honorificRegister]
+                    )
+                  }
+                  disabled={isSpeaking}
+                  className="px-4 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/50 text-cyan-200 text-xs font-semibold flex items-center gap-2 transition disabled:opacity-50"
+                >
+                  <Play className="text-sm" weight="fill" />
+                  <span>
+                    {isSpeaking
+                      ? `Speaking ${selectedLang.name}...`
+                      : `Speak in ${selectedLang.name} (${selectedLang.nativeName})`}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {audioUrl && (
+              <div className="pt-2">
+                <audio controls src={audioUrl} className="w-full h-8" />
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
-      {/* MAIN TWO-COLUMN TRANSLATE & TTS WORKSPACE */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
-        {/* SOURCE INPUT CARD */}
-        <div className="lg:col-span-6 flex flex-col gap-4 bg-slate-900/60 border border-white/10 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Translate className="text-amber-400 text-base" />
-              <h2 className="text-sm font-semibold text-slate-200">Source Reflection / Memory (English)</h2>
-            </div>
-            <button
-              onClick={() => setInputText(selectedLang.samplePrompt)}
-              className="text-[11px] text-amber-300/80 hover:text-amber-300 underline underline-offset-2"
-            >
-              Load Sample Phrase
-            </button>
-          </div>
-
-          <textarea
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            rows={6}
-            placeholder="Type a loving memory, reflection, or question in English..."
-            className="w-full bg-slate-950/80 border border-white/10 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500/60 resize-none font-sans"
-          />
-
-          <div className="flex items-center justify-between pt-2">
-            <span className="text-[11px] text-slate-500 font-mono">
-              {inputText.length} / 1500 chars
-            </span>
-            <button
-              onClick={handleTranslate}
-              disabled={isTranslating || !inputText.trim()}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-semibold text-xs flex items-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-amber-500/20"
-            >
-              {isTranslating ? (
-                <>
-                  <ArrowsClockwise className="text-sm animate-spin" />
-                  <span>Translating via Gemini...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkle className="text-sm" />
-                  <span>Translate to {selectedLang.name}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* TRANSLATED OUTPUT & TTS SYNTHESIS CARD */}
-        <div className="lg:col-span-6 flex flex-col gap-4 bg-slate-900/60 border border-white/10 rounded-2xl p-5 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <SpeakerHigh className="text-cyan-400 text-base" />
-              <h2 className="text-sm font-semibold text-slate-200">
-                {selectedLang.name} Output &amp; Voice Synthesis
-              </h2>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300">
-              BCP-47: {selectedLang.speechSynthesisTag}
-            </span>
-          </div>
-
-          <textarea
-            value={translatedText || selectedLang.samplePrompt}
-            onChange={(e) => setTranslatedText(e.target.value)}
-            rows={6}
-            placeholder={`Translation in ${selectedLang.name} will appear here...`}
-            className="w-full bg-slate-950/80 border border-white/10 rounded-xl p-3.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500/60 resize-none font-sans"
-          />
-
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <button
-              onClick={() => {
-                if (translatedText) navigator.clipboard.writeText(translatedText);
-              }}
-              className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5"
-            >
-              <Copy className="text-sm" />
-              <span>Copy Text</span>
-            </button>
-
-            <button
-              onClick={() => handleSpeak(translatedText || selectedLang.samplePrompt)}
-              disabled={isSpeaking}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-400 hover:to-cyan-500 text-slate-950 font-semibold text-xs flex items-center gap-2 transition disabled:opacity-50 shadow-md shadow-cyan-500/20"
-            >
-              {isSpeaking ? (
-                <>
-                  <SpeakerHigh className="text-sm animate-pulse text-slate-950" />
-                  <span>Synthesizing Voice...</span>
-                </>
-              ) : (
-                <>
-                  <Play className="text-sm" />
-                  <span>Speak in {selectedLang.name}</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* FEEDBACK STATUS BANNER */}
-      {(statusMessage || errorMessage) && (
-        <div className="mt-6">
-          {statusMessage && (
-            <div className="flex items-center gap-2 text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/50 p-3 rounded-xl">
-              <CheckCircle className="text-sm text-emerald-400 shrink-0" />
-              <span>{statusMessage}</span>
-            </div>
-          )}
-          {errorMessage && (
-            <div className="flex items-center gap-2 text-xs text-rose-300 bg-rose-950/40 border border-rose-800/50 p-3 rounded-xl mt-2">
-              <WarningCircle className="text-sm text-rose-400 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -3,6 +3,9 @@
  * Strict TypeScript contracts with ZERO external dependencies (no React, Firebase, or Google SDKs).
  */
 
+export * from './invitations';
+
+
 export type ResponseMode = 'PRESENCE' | 'GUIDE' | 'SAFETY';
 
 export type SupportLevel =
@@ -18,7 +21,40 @@ export type ProvenanceType =
   | 'GENERAL_SUPPORT'
   | 'GENERATED_CONTENT';
 
-export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED';
+export type ProvenanceTier = ProvenanceType;
+
+export type ReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'REVOKED' | 'REVIEW_REQUIRED';
+
+export type MemoryReviewStatus = 'APPROVED' | 'REVIEW_REQUIRED' | 'REVOKED';
+
+export type EvidenceSourceType = 'AUDIO' | 'TEXT' | 'DOCUMENT' | 'PHOTO';
+
+export interface AudioEvidenceAnchor {
+  kind: 'AUDIO';
+  sourceId: string;
+  sourceTitle: string;
+  sourceUrl?: string;
+  transcriptSegmentId: string;
+  startMs: number;
+  endMs: number;
+  quotedText?: string;
+  checksumSha256?: string;
+}
+
+export interface TextEvidenceAnchor {
+  kind: 'TEXT' | 'DOCUMENT' | 'PHOTO';
+  sourceId: string;
+  sourceTitle: string;
+  sourceUrl?: string;
+  pageNumber?: number;
+  paragraphId?: string;
+  startChar?: number;
+  endChar?: number;
+  quotedText?: string;
+  checksumSha256?: string;
+}
+
+export type EvidenceAnchor = AudioEvidenceAnchor | TextEvidenceAnchor;
 
 export type SafetyState = 'NORMAL' | 'ELEVATED' | 'URGENT';
 
@@ -42,14 +78,23 @@ export interface MemoryRecord {
   ownerUid: string;
   profileId: string;
   representedPersonId: string;
+  title?: string;
   contributorUid: string;
+  contributorId?: string;
+  contributorDisplayName?: string;
   recordedSpeakerId?: string;
+  recordedSpeakerDisplayName?: string;
+  verifiedLocation?: string;
+  categoryIds?: string[];
   sourceRefs: string[];
   sourceOffsetSeconds?: number;
   sourcePageOffset?: number;
   reviewedText: string;
   provenance: ProvenanceType;
+  provenanceTier?: ProvenanceTier;
   reviewStatus: ReviewStatus;
+  evidenceAnchors?: EvidenceAnchor[];
+  restrictedScope?: boolean;
   embedding768?: number[]; // 768-dimensional Gemini Embedding 2
   createdAt: string;
   updatedAt: string;

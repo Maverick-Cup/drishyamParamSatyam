@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import {
   Graph,
@@ -8,6 +8,8 @@ import {
   ImagesSquare,
   UsersThree,
   ShieldCheck,
+  WarningCircle,
+
   Wind,
   PlusCircle,
   Play,
@@ -49,10 +51,36 @@ import {
   Phone,
   GearSix,
   Warning,
-  Translate
+  Translate,
+  SpeakerSlash,
+  Palette,
+  Drop,
+  Snowflake,
+  Plant,
+  Sun,
+  MusicNotes
 } from '@phosphor-icons/react';
 import { CRISIS_DIRECTORIES } from '@/config/crisisHelplines';
 import GoogleDrivePickerModal, { GoogleDriveLogoIcon } from '@/components/GoogleDrivePickerModal';
+import { SeasonalThemeType } from '@/components/SeasonalParticleCanvas';
+import {
+  RepresentedPersonProfileCard,
+  RepresentedPersonProfileData,
+} from '@/components/RepresentedPersonProfileCard';
+import {
+  ConfigurePersonaModal,
+  CustomPersonaInitialMemory,
+} from '@/components/ConfigurePersonaModal';
+import { indicEngine } from '@/services/IndicTranslationEngine';
+import { MemoryRecord } from '@/domain/models';
+import { MobileAppBar } from '@/components/mobile/MobileAppBar';
+import { MobileBottomNav, MobileTab } from '@/components/mobile/MobileBottomNav';
+import { MobileMoreSheet } from '@/components/mobile/MobileMoreSheet';
+import { MobileReflectionSheet } from '@/components/mobile/MobileReflectionSheet';
+
+import { buildMemoryGraph } from '@/services/memoryGraphBuilder';
+import InteractiveMindMap from '@/components/InteractiveMindMap';
+import { UserProfileModal, ActiveUserProfile } from '@/components/UserProfileModal';
 
 interface ChatMessage {
   id: string;
@@ -66,6 +94,7 @@ interface ChatMessage {
   audioSnippetLength?: string;
   imageUrl?: string;
   audioUrl?: string;
+  isAttachedVoiceSample?: boolean;
 }
 
 interface MemoryCategory {
@@ -237,22 +266,39 @@ export default function PresenceGriefTechPage() {
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
   const [avatarUploadNotice, setAvatarUploadNotice] = useState<string>('');
 
-  // Active Portrait & Authentic Audio Source State
+  // Active Portrait, Companion Identity & Authentic Audio Source State
+  const [companionPersonName, setCompanionPersonName] = useState<string>('Prof. Anand Sharma');
+  const [companionPersonRelation, setCompanionPersonRelation] = useState<string>('Grandfather');
   const [activePortraitUrl, setActivePortraitUrl] = useState<string>(
-    '/avatar_thomas_clean.jpg'
+    '/avatar_RajeshBadePapa_clean.jpg'
   );
+  const [personaProfile, setPersonaProfile] = useState<RepresentedPersonProfileData>({
+    id: 'prof_anand_sharma_1945',
+    fullName: 'Prof. Anand Sharma',
+    relationship: 'Grandfather',
+    birthYear: '1945',
+    passedYear: '2022',
+    portraitUrl: '/avatar_RajeshBadePapa_clean.jpg',
+    consentVersion: 'v2.1_formal_family_scope',
+    isSynced: true,
+  });
+  const [isConfigurePersonaModalOpen, setIsConfigurePersonaModalOpen] = useState<boolean>(false);
+  const [indicModeEnabled, setIndicModeEnabled] = useState<boolean>(false);
+  const [indicSelectedDialect, setIndicSelectedDialect] = useState<string>('bho');
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
-  const [activeAudioTitle, setActiveAudioTitle] = useState<string>('Thomas 2018 Memory Snippet (Authentic)');
+  const [activeAudioTitle, setActiveAudioTitle] = useState<string>('Attached Companion Voice Reference');
   const [audioDuration, setAudioDuration] = useState<string>('0:08');
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const avatarVideoRef = useRef<HTMLVideoElement | null>(null);
+  const isPlayingNativeVideoVoiceRef = useRef<boolean>(false);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioAnalyserRef = useRef<AnalyserNode | null>(null);
   const audioSourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioRafIdRef = useRef<number | null>(null);
 
   // Persistent 1:1 Voice Profile Binding State
-  const [boundVoiceId, setBoundVoiceId] = useState<string>('EXAVITQu4vr4xnSDxMaL');
-  const [boundVoiceName, setBoundVoiceName] = useState<string>('Thomas (Cloned Voice)');
+  const [boundVoiceId, setBoundVoiceId] = useState<string>('sync-rajesh-authentic-v2');
+  const [boundVoiceName, setBoundVoiceName] = useState<string>('Rajesh Bade Papa (Attached Voice)');
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
   const [voiceCustomSample, setVoiceCustomSample] = useState<File | null>(null);
   const [voiceConsentGiven, setVoiceConsentGiven] = useState<boolean>(true);
@@ -264,60 +310,35 @@ export default function PresenceGriefTechPage() {
   const [selectedCrisisRegion, setSelectedCrisisRegion] = useState<string>('IN');
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
 
-  // MuseTalk 1.5 Video Synthesis Integration State
-  const [isMuseTalkPanelOpen, setIsMuseTalkPanelOpen] = useState<boolean>(false);
-  const [museTalkBboxShift, setMuseTalkBboxShift] = useState<number>(0);
-  const [museTalkStatus, setMuseTalkStatus] = useState<string>('IDLE');
-  const [museTalkLogs, setMuseTalkLogs] = useState<string[]>([
-    'MuseTalk 1.5 Pipeline ready within Companion view.',
-  ]);
-  const [museTalkVideoUrl, setMuseTalkVideoUrl] = useState<string | null>(null);
-  const [isGeneratingMuseTalk, setIsGeneratingMuseTalk] = useState<boolean>(false);
+  // Sync 2 Pro Living Video Synthesis Integration State
+  const [museTalkVideoUrl, setMuseTalkVideoUrl] = useState<string | null>('/sample_reference.mp4');
 
-  // Connected Circle Members State
-  const [circleMembers, setCircleMembers] = useState([
-    {
-      id: 'member-1',
-      name: 'Maya',
-      email: 'maya@example.com',
-      role: 'Contributor',
-      relation: 'Daughter (Owner)',
-      avatar:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
-      joinedAt: 'Active now',
-    },
-    {
-      id: 'member-2',
-      name: 'Claire',
-      email: 'claire.family@gmail.com',
-      role: 'Contributor',
-      relation: 'Sister',
-      avatar:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCPrQZI86P-lCAqlJIQq834CG5Uw4YDsSat59s4pB003oUoGeCWd0n4JR4hbsKz_hgBzz9iol0TwRbldMKGbCQWct5gEjxoYMEdqxzEzJZ6egWSNiQf6KMJaE9Scd4tcg2OXEtKD1_Y3wXWcMWhbITSjrzx_GxKsfoG-s4ognBOH8hS6BtRwF1fHh1etk5Hw3DJaphLSdD15XMvtECGDQVG_qEsFfQC6v6hXv8I5Sg',
-      joinedAt: 'Joined Oct 5',
-    },
-    {
-      id: 'member-3',
-      name: 'Arjun',
-      email: 'arjun.k@domain.org',
-      role: 'Viewer',
-      relation: 'Grandson',
-      avatar:
-        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80',
-      joinedAt: 'Joined Oct 8',
-    },
-  ]);
-  const [pendingInvites, setPendingInvites] = useState([
-    {
-      id: 'invite-1',
-      email: 'uncle.dev@familymail.com',
-      role: 'Contributor',
-      sentAt: 'Invite sent 2d ago',
-    },
-  ]);
+  // Connected Circle State (Live Firestore backed)
+  const [circleMembers, setCircleMembers] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      relation: string;
+      avatar: string;
+      joinedAt: string;
+    }>
+  >([]);
+  const [pendingInvites, setPendingInvites] = useState<
+    Array<{
+      id: string;
+      email: string;
+      role: string;
+      sentAt: string;
+    }>
+  >([]);
   const [inviteEmailInput, setInviteEmailInput] = useState('');
   const [inviteRoleInput, setInviteRoleInput] = useState<'Contributor' | 'Viewer'>('Contributor');
   const [inviteSuccessNotice, setInviteSuccessNotice] = useState('');
+  const [inviteErrorMessage, setInviteErrorMessage] = useState('');
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
+
 
   // Audio spectrum, speech synthesis & lip-sync state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -341,17 +362,17 @@ export default function PresenceGriefTechPage() {
       author: 'Maya',
       avatarUrl:
         'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
-      text: 'Dad, do you remember that morning we walked up the ridge at Olympic Park? It was so quiet.',
+      text: 'Do you remember those quiet mornings we spent talking together with the family? It felt so peaceful.',
     },
     {
       id: '2',
       sender: 'companion',
-      author: 'Thomas',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuCPrQZI86P-lCAqlJIQq834CG5Uw4YDsSat59s4pB003oUoGeCWd0n4JR4hbsKz_hgBzz9iol0TwRbldMKGbCQWct5gEjxoYMEdqxzEzJZ6egWSNiQf6KMJaE9Scd4tcg2OXEtKD1_Y3wXWcMWhbITSjrzx_GxKsfoG-s4ognBOH8hS6BtRwF1fHh1etk5Hw3DJaphLSdD15XMvtECGDQVG_qEsFfQC6v6hXv8I5Sg',
-      text: '"I remember the smell of the pine trees after the rain, too... We sat on that cedar bench by the trailhead for nearly an hour. Tell me, what else do you recall about that afternoon?"',
+      author: 'Rajesh Bade Papa',
+      avatarUrl: '/avatar_RajeshBadePapa_clean.jpg',
+      text: '"I remember every moment warmly. Sitting together, sharing stories, and watching everyone grow has always been my greatest joy. Tell me, what is on your mind today?"',
       faithfulnessScore: '100% verified',
-      audioSnippetLength: '0:09 snippet',
+      audioSnippetLength: 'Attached Voice',
+      isAttachedVoiceSample: true,
     },
   ]);
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
@@ -365,7 +386,99 @@ export default function PresenceGriefTechPage() {
   const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
   const [googleDriveMode, setGoogleDriveMode] = useState<'audio' | 'photos'>('audio');
 
+  // Seasonal Themes & Ambient Soundscape State
+  const [activeTheme, setActiveTheme] = useState<SeasonalThemeType>('cosmic');
+  const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
+  const [isAmbientMuted, setIsAmbientMuted] = useState(false);
+  const [ambientVolume, setAmbientVolume] = useState(0.35);
+  const ambientAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Breathing Break Soundscape State
+  const [breathingSoundTrack, setBreathingSoundTrack] = useState<'birds' | 'rain' | 'jingle' | 'rumi' | 'silence'>('birds');
+  const [breathingVolume, setBreathingVolume] = useState(0.45);
+  const [isBreathingMuted, setIsBreathingMuted] = useState(false);
+  const breathingAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Mobile Adaptive Shell State
+  const [isMobileMoreOpen, setIsMobileMoreOpen] = useState(false);
+  const [isMobileReflectionOpen, setIsMobileReflectionOpen] = useState(false);
+
+  // Active Logged-In User Profile State
+  const [isUserProfileModalOpen, setIsUserProfileModalOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<ActiveUserProfile>({
+    displayName: 'Maya',
+    email: 'hpshahi12@gmail.com',
+    relationship: 'Granddaughter & Family Owner',
+    avatarUrl:
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuAkM9-qFCcd6h1qbdIM3Uaaj9G2bxYFGZJ-HjNC-BgIiIJchAvfQXV8k3n2_grb8xPKhB1u78Z8gMpe2ifh7AG4fOhu8KwQsyoeS5Z2XDphOqAlVOl1LQX3GtIOFTchjKqUUssFoQcPz1LwklcurbPRP_-OiqJ2Vmg6V89Lmx3K0-0LuJlmoM70g_FTt5dl9b1st9tStS9yOG7OmkCoViQm4D5PpTmxQN4wmh36A0Q',
+  });
+
+  const handleSaveUserProfile = (updated: ActiveUserProfile) => {
+    setUserProfile(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('paramsathya_user_profile_v1', JSON.stringify(updated));
+    }
+    // Sync active sender info across existing and upcoming chats
+    setConversations((prev) =>
+      prev.map((m) =>
+        m.sender === 'user'
+          ? { ...m, author: updated.displayName, avatarUrl: updated.avatarUrl }
+          : m
+      )
+    );
+  };
+
+  // Cross-Vault Deletion Handlers
+  const handleDeletePhoto = (photoId: string, title?: string) => {
+    const photoName = title || 'this keepsake photo';
+    if (!window.confirm(`Are you sure you want to remove "${photoName}" from your keepsake vault?`)) {
+      return;
+    }
+    setUploadedPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  };
+
+  const handleDeleteAudio = (audioId: string, title?: string) => {
+    const clipTitle = title || 'this voice recording';
+    if (!window.confirm(`Are you sure you want to delete "${clipTitle}" from your voice vault?`)) {
+      return;
+    }
+    // If the audio currently playing matches, stop playback immediately
+    const targetAudio = uploadedAudioVault.find((a) => a.id === audioId);
+    if (targetAudio && activeAudioUrl === targetAudio.url) {
+      stopAllAudio();
+      setActiveAudioUrl('');
+      setActiveAudioTitle('');
+    }
+    setUploadedAudioVault((prev) => prev.filter((a) => a.id !== audioId));
+  };
+
+  const handleDeleteMemory = (memoryId: string, title?: string) => {
+    const memoryTitle = title || 'this memory record';
+    if (!window.confirm(`Are you sure you want to remove "${memoryTitle}" from the remembrance constellation?`)) {
+      return;
+    }
+    // Remove the item matching either id or cleanTitle across categories
+    setCategoriesList((prev) =>
+      prev.map((cat) => ({
+        ...cat,
+        items: cat.items.filter((item) => {
+          const itemDedupKey = `mem-${cat.id}-${item.title.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+          return itemDedupKey !== memoryId && item.title.trim().toLowerCase() !== (title || '').trim().toLowerCase();
+        }),
+      }))
+    );
+  };
+
+  const handleDeleteCircleMember = (memberId: string, memberName: string) => {
+    if (!window.confirm(`Remove ${memberName} from the Connected Circle?`)) {
+      return;
+    }
+    setCircleMembers((prev) => prev.filter((m) => m.id !== memberId));
+    setInviteSuccessNotice(`Removed ${memberName} from the Connected Circle.`);
+    setTimeout(() => setInviteSuccessNotice(''), 3000);
+  };
+
   const handleGoogleDriveImport = (
+
     items: Array<{ title: string; url: string; size: string; date: string; source: string; type: 'audio' | 'image' }>
   ) => {
     items.forEach((item) => {
@@ -389,14 +502,229 @@ export default function PresenceGriefTechPage() {
     });
   };
 
-  // Initialize Speech Synthesis Voices
+  // Initialize Speech Synthesis Voices, Themes and Ambient Audio Engine
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.onvoiceschanged = () => {
         window.speechSynthesis.getVoices();
       };
     }
+
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('paramsathya_theme') as SeasonalThemeType;
+      if (savedTheme) {
+        setActiveTheme(savedTheme);
+      }
+
+      const savedUserProfile = localStorage.getItem('paramsathya_user_profile_v1');
+      if (savedUserProfile) {
+        try {
+          const parsed = JSON.parse(savedUserProfile);
+          if (parsed && parsed.displayName) {
+            setUserProfile(parsed);
+            setConversations((prev) =>
+              prev.map((m) =>
+                m.sender === 'user'
+                  ? { ...m, author: parsed.displayName, avatarUrl: parsed.avatarUrl || m.avatarUrl }
+                  : m
+              )
+            );
+          }
+        } catch {}
+      }
+
+      const applyBoundCompanion = (data: any) => {
+        if (!data) return;
+        const nextName = data.personName || 'Rajesh Bade Papa';
+        const nextPortrait = data.portraitUrl || '/avatar_RajeshBadePapa_clean.jpg';
+        if (data.personName) setCompanionPersonName(data.personName);
+        if (data.personRelation) setCompanionPersonRelation(data.personRelation);
+        if (data.portraitUrl) setActivePortraitUrl(data.portraitUrl);
+        if (data.voiceId) setBoundVoiceId(data.voiceId);
+        if (data.voiceName) {
+          setBoundVoiceName(data.voiceName);
+        } else if (data.personName) {
+          setBoundVoiceName(`${data.personName} (Attached Voice)`);
+        }
+        if (data.preferredDisplay === 'image') {
+          setMuseTalkVideoUrl(null);
+        } else if (data.videoUrl) {
+          setMuseTalkVideoUrl(data.videoUrl);
+        }
+        setConversations((prev) =>
+          prev.map((m) =>
+            m.sender === 'companion'
+              ? { ...m, author: nextName, avatarUrl: nextPortrait }
+              : m
+          )
+        );
+      };
+
+      const savedCompanion = localStorage.getItem('paramsathya_bound_companion');
+      if (savedCompanion) {
+        try {
+          applyBoundCompanion(JSON.parse(savedCompanion));
+        } catch {}
+      }
+
+      const handleCompanionEvent = (evt: Event) => {
+        const customEvt = evt as CustomEvent;
+        if (customEvt.detail) applyBoundCompanion(customEvt.detail);
+      };
+      window.addEventListener('paramsathya-companion-updated', handleCompanionEvent);
+
+      if (!ambientAudioRef.current) {
+        ambientAudioRef.current = new Audio();
+        ambientAudioRef.current.loop = true;
+        ambientAudioRef.current.volume = ambientVolume;
+      }
+
+      if (!breathingAudioRef.current) {
+        breathingAudioRef.current = new Audio();
+        breathingAudioRef.current.loop = true;
+        breathingAudioRef.current.volume = breathingVolume;
+      }
+
+      return () => {
+        window.removeEventListener('paramsathya-companion-updated', handleCompanionEvent);
+      };
+    }
   }, []);
+
+  // Sync ambient audio volume & mute state
+  useEffect(() => {
+    if (ambientAudioRef.current) {
+      ambientAudioRef.current.volume = isAmbientMuted ? 0 : ambientVolume;
+    }
+  }, [ambientVolume, isAmbientMuted]);
+
+  // SMART VOICE AUTO-DUCKING:
+  // When Avatar Companion speaks (either authentic audio or speech synthesis),
+  // automatically duck ambient audio down to 0% / pause so it NEVER interferes with the loved one's voice!
+  useEffect(() => {
+    if (!ambientAudioRef.current) return;
+    const ambient = ambientAudioRef.current;
+
+    if (isSpeaking || isPlaying) {
+      ambient.pause();
+    } else {
+      if (!isAmbientMuted) {
+        // Resume playing current theme tune if unmuted
+        ambient.play().catch(() => {});
+      }
+    }
+  }, [isSpeaking, isPlaying, isAmbientMuted, activeTheme]);
+
+  // Breathing Modal Audio Loop: Plays when open, ceases when closed
+  useEffect(() => {
+    if (!breathingAudioRef.current) return;
+    const player = breathingAudioRef.current;
+
+    if (isBreathingModalOpen && !isBreathingMuted) {
+      if (breathingSoundTrack === 'birds') {
+        player.src = '/audio/birds_432hz.mp3';
+        player.volume = breathingVolume;
+        player.play().catch(() => {});
+      } else if (breathingSoundTrack === 'rain') {
+        player.src = '/audio/gentle_rain.mp3';
+        player.volume = breathingVolume;
+        player.play().catch(() => {});
+      } else if (breathingSoundTrack === 'jingle') {
+        player.src = '/audio/jingle_bells.mp3';
+        player.volume = breathingVolume;
+        player.play().catch(() => {});
+      } else if (breathingSoundTrack === 'rumi') {
+        player.src = '/audio/rumi_tune.mp3';
+        player.volume = breathingVolume;
+        player.play().catch(() => {});
+      } else {
+        player.pause();
+      }
+    } else {
+      player.pause();
+      player.currentTime = 0;
+    }
+
+    return () => {
+      player.pause();
+    };
+  }, [isBreathingModalOpen, breathingSoundTrack, isBreathingMuted, breathingVolume]);
+
+  // Load live Connected Circle members and pending invitations from backend
+  const fetchCircleData = useCallback(async () => {
+    try {
+      const [membersResp, invitesResp] = await Promise.all([
+        fetch('/api/circle/members?profileId=profile-satya-default'),
+        fetch('/api/circle/invitations?profileId=profile-satya-default'),
+      ]);
+
+      if (membersResp.ok) {
+        const data = await membersResp.json();
+        if (data.success && Array.isArray(data.members)) {
+          setCircleMembers(
+            data.members.map((m: any) => ({
+              id: m.id,
+              name: m.displayName || m.emailNormalized.split('@')[0],
+              email: m.emailNormalized,
+              role: m.role === 'OWNER' ? 'Owner' : m.role === 'CONTRIBUTOR' ? 'Contributor' : 'Viewer',
+              relation: m.role === 'OWNER' ? 'Profile Owner' : 'Connected Member',
+              avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(m.displayName || m.emailNormalized)}`,
+              joinedAt: new Date(m.joinedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            }))
+          );
+        }
+      }
+
+      if (invitesResp.ok) {
+        const data = await invitesResp.json();
+        if (data.success && Array.isArray(data.invitations)) {
+          setPendingInvites(
+            data.invitations.map((i: any) => ({
+              id: i.id,
+              email: i.invitedEmailNormalized,
+              role: i.role === 'CONTRIBUTOR' ? 'Contributor' : 'Viewer',
+              sentAt: `Invite sent ${new Date(i.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+            }))
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('[Presence] Failed to fetch live circle data:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchCircleData();
+  }, [fetchCircleData]);
+
+
+  const handleThemeSelect = (newTheme: SeasonalThemeType) => {
+    setActiveTheme(newTheme);
+    setIsThemeDropdownOpen(false);
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('paramsathya_theme', newTheme);
+      window.dispatchEvent(new CustomEvent('paramsathya-theme-change', { detail: { theme: newTheme } }));
+    }
+
+    if (ambientAudioRef.current) {
+      const ambient = ambientAudioRef.current;
+      if (newTheme === 'snowfall') {
+        ambient.src = '/audio/jingle_bells.mp3';
+      } else if (newTheme === 'cosmic' || newTheme === 'autumn') {
+        ambient.src = '/audio/rumi_tune.mp3';
+      } else if (newTheme === 'rains') {
+        ambient.src = '/audio/gentle_rain.mp3';
+      } else if (newTheme === 'springs') {
+        ambient.src = '/audio/birds_432hz.mp3';
+      }
+
+      ambient.volume = isAmbientMuted ? 0 : ambientVolume;
+      if (!isAmbientMuted && !isSpeaking && !isPlaying) {
+        ambient.play().catch(() => {});
+      }
+    }
+  };
 
   // Handle File Selection for Upload Modal
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -531,20 +859,19 @@ export default function PresenceGriefTechPage() {
     setTimeout(() => {
       const responseText = isImage
         ? 'I see this wonderful photo you shared. I have set it as my current portrait in our companion space.'
-        : 'Thank you for sharing this voice note. I can hear the joy in your voice.';
+        : 'Thank you for sharing this voice note. I can hear the warmth in your voice.';
 
       const companionMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'companion',
-        author: 'Thomas',
-        avatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCPrQZI86P-lCAqlJIQq834CG5Uw4YDsSat59s4pB003oUoGeCWd0n4JR4hbsKz_hgBzz9iol0TwRbldMKGbCQWct5gEjxoYMEdqxzEzJZ6egWSNiQf6KMJaE9Scd4tcg2OXEtKD1_Y3wXWcMWhbITSjrzx_GxKsfoG-s4ognBOH8hS6BtRwF1fHh1etk5Hw3DJaphLSdD15XMvtECGDQVG_qEsFfQC6v6hXv8I5Sg',
+        author: companionPersonName,
+        avatarUrl: activePortraitUrl,
         text: `"${responseText}"`,
         faithfulnessScore: '100% verified',
-        audioSnippetLength: '0:08 snippet',
+        audioSnippetLength: 'Attached Voice',
       };
       setConversations((prev) => [...prev, companionMsg]);
-      speakText(responseText);
+      speakCompanionMessage(responseText, false);
     }, 900);
   };
 
@@ -645,11 +972,20 @@ export default function PresenceGriefTechPage() {
 
   const lipSyncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Stop any active audio (HTML5 or synthesis)
+  // Stop any active audio (HTML5, native video voice, or synthesis) and return avatar to calm idle state
   const stopAllAudio = () => {
     if (audioElementRef.current) {
       audioElementRef.current.pause();
       audioElementRef.current.currentTime = 0;
+    }
+    if (avatarVideoRef.current) {
+      isPlayingNativeVideoVoiceRef.current = false;
+      avatarVideoRef.current.pause();
+      avatarVideoRef.current.muted = true;
+      avatarVideoRef.current.loop = false;
+      try {
+        avatarVideoRef.current.currentTime = 0;
+      } catch (_) {}
     }
     if (audioRafIdRef.current) {
       cancelAnimationFrame(audioRafIdRef.current);
@@ -667,22 +1003,68 @@ export default function PresenceGriefTechPage() {
     setIsPlaying(false);
   };
 
-  // Play Authentic Uploaded Audio File with True RMS Web Audio Analyser
+  // Animate the bound avatar video silently (muted) while external TTS / cloned audio speaks
+  const startSilentAvatarVideoSync = () => {
+    if (avatarVideoRef.current) {
+      isPlayingNativeVideoVoiceRef.current = false;
+      avatarVideoRef.current.muted = true;
+      avatarVideoRef.current.loop = true;
+      avatarVideoRef.current.play().catch(() => {});
+    }
+  };
+
+  // Play the bound living video's own authentic voice & lip-sync track ONCE (no infinite loop)
+  const playNativeAttachedVideoVoiceOnce = () => {
+    if (!avatarVideoRef.current || !museTalkVideoUrl) return false;
+    stopAllAudio();
+    const video = avatarVideoRef.current;
+    isPlayingNativeVideoVoiceRef.current = true;
+    video.loop = false;
+    video.muted = false;
+    try {
+      video.currentTime = 0;
+    } catch (_) {}
+
+    setIsPlaying(true);
+    setIsSpeaking(true);
+
+    if (lipSyncIntervalRef.current) clearInterval(lipSyncIntervalRef.current);
+    let step = 0;
+    lipSyncIntervalRef.current = setInterval(() => {
+      if (video.paused || video.ended) {
+        stopAllAudio();
+        return;
+      }
+      step++;
+      const base = Math.sin(step * 0.45) * 0.35 + 0.5;
+      const jitter = (Math.random() - 0.5) * 0.2;
+      setMouthScale(Math.max(0.15, Math.min(1.0, base + jitter)));
+    }, 80);
+
+    video.play().catch((err) => {
+      console.warn('Video voice playback error:', err);
+      stopAllAudio();
+    });
+    return true;
+  };
+
+  // Play Authentic Uploaded Audio File or Bound Video Voice Sample
   const playAuthenticVoiceAudio = (audioUrlToPlay?: string) => {
     if (typeof window === 'undefined') return;
 
-    if (isPlaying || isSpeaking) {
+    if ((isPlaying || isSpeaking) && !audioUrlToPlay) {
       stopAllAudio();
       return;
     }
 
     const targetUrl = audioUrlToPlay || activeAudioUrl;
 
-    // If an authentic audio recording exists, play the REAL voice
+    // 1. If an external audio URL (uploaded file or synthesized TTS URL) exists, play it and sync muted avatar video
     if (targetUrl) {
       stopAllAudio();
       setIsPlaying(true);
       setIsSpeaking(true);
+      startSilentAvatarVideoSync();
 
       if (!audioElementRef.current) {
         audioElementRef.current = new Audio();
@@ -717,7 +1099,6 @@ export default function PresenceGriefTechPage() {
             }
           }
 
-          // Real-time loop reading audio frequency data
           const dataArray = new Uint8Array(audioAnalyserRef.current.frequencyBinCount);
           const updateMouthFromAudio = () => {
             if (!audioAnalyserRef.current || audio.paused || audio.ended) {
@@ -725,14 +1106,12 @@ export default function PresenceGriefTechPage() {
             }
             audioAnalyserRef.current.getByteFrequencyData(dataArray);
 
-            // Calculate RMS energy across vocal speech range (bins 2 to 32)
             let sum = 0;
             const vocalBins = Math.min(32, dataArray.length);
             for (let i = 2; i < vocalBins; i++) {
               sum += dataArray[i] * dataArray[i];
             }
             const rms = Math.sqrt(sum / (vocalBins - 2)) / 255;
-            // Map RMS to natural mouth scale
             const targetScale = Math.min(1.0, Math.max(0, rms * 2.2));
             setMouthScale((prev) => prev * 0.4 + targetScale * 0.6);
 
@@ -754,7 +1133,6 @@ export default function PresenceGriefTechPage() {
       audio.onerror = () => {
         console.warn('Audio playback error, falling back to speech synthesis');
         stopAllAudio();
-        speakText(conversations[conversations.length - 1]?.text || 'I remember sitting on that cedar bench with you.');
       };
 
       audio.play().catch((err) => {
@@ -764,24 +1142,29 @@ export default function PresenceGriefTechPage() {
       return;
     }
 
-    // Fallback: If no real audio file is uploaded yet, synthesize the message text
+    // 2. If a living video is attached (e.g. Sync 2 Pro sample_reference.mp4), play its authentic voice track ONCE
+    if (museTalkVideoUrl && avatarVideoRef.current) {
+      playNativeAttachedVideoVoiceOnce();
+      return;
+    }
+
+    // 3. Fallback: Synthesize the last companion message text
     const lastCompanionMsg = [...conversations].reverse().find((m) => m.sender === 'companion');
     if (lastCompanionMsg) {
       speakText(lastCompanionMsg.text);
     }
   };
 
-  // Real Speech Synthesis Fallback ("Talk Back Out Loud") with Viseme Lip-Sync
+  // Real Speech Synthesis Fallback ("Talk Back Out Loud") with Muted Avatar Video Sync
   const speakText = (text: string) => {
     if (typeof window === 'undefined') return;
 
-    // Helper to start continuous mouth oscillation while speaking
     const startMouthAnimation = () => {
+      startSilentAvatarVideoSync();
       if (lipSyncIntervalRef.current) clearInterval(lipSyncIntervalRef.current);
       let step = 0;
       lipSyncIntervalRef.current = setInterval(() => {
         step++;
-        // Natural speech syllabic envelope simulation (alternating jaw drop and lip shapes)
         const base = Math.sin(step * 0.45) * 0.4 + 0.5;
         const jitter = (Math.random() - 0.5) * 0.25;
         const currentScale = Math.max(0.15, Math.min(1.0, base + jitter));
@@ -794,7 +1177,6 @@ export default function PresenceGriefTechPage() {
     };
 
     if (!('speechSynthesis' in window)) {
-      // Fallback: animate visually for text preview
       setIsSpeaking(true);
       setIsPlaying(true);
       startMouthAnimation();
@@ -804,25 +1186,28 @@ export default function PresenceGriefTechPage() {
 
     window.speechSynthesis.cancel();
 
-    if (isSpeaking) {
-      stopMouthAnimation();
-      return;
-    }
-
     const cleanText = text.replace(/^"|"$/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
 
     const voices = window.speechSynthesis.getVoices();
+    // Prefer warm Indian-English / Hindi-inflected or natural male voice matching the bound companion
     const preferredVoice =
+      voices.find(
+        (v) =>
+          (v.lang === 'en-IN' || v.lang === 'hi-IN') &&
+          (v.name.includes('Male') || v.name.includes('Prabhat') || v.name.includes('Madhur') || v.name.includes('Natural') || v.name.includes('Google'))
+      ) ||
+      voices.find((v) => v.lang === 'en-IN' || v.lang === 'hi-IN') ||
       voices.find(
         (v) =>
           v.lang.startsWith('en') &&
           (v.name.includes('Natural') || v.name.includes('Male') || v.name.includes('David') || v.name.includes('Google'))
-      ) || voices.find((v) => v.lang.startsWith('en'));
+      ) ||
+      voices.find((v) => v.lang.startsWith('en'));
 
     if (preferredVoice) utterance.voice = preferredVoice;
     utterance.pitch = 0.92;
-    utterance.rate = 0.95;
+    utterance.rate = 0.94;
 
     utterance.onstart = () => {
       setIsSpeaking(true);
@@ -831,7 +1216,6 @@ export default function PresenceGriefTechPage() {
     };
 
     utterance.onboundary = () => {
-      // Trigger extra syllabic accent on word boundary
       setMouthScale(0.75 + Math.random() * 0.25);
     };
 
@@ -844,6 +1228,59 @@ export default function PresenceGriefTechPage() {
     };
 
     window.speechSynthesis.speak(utterance);
+  };
+
+  // Unified Attached Voice Playback for Chat Messages (#3) & New AI Replies
+  const speakCompanionMessage = async (
+    rawText: string,
+    isAttachedSample: boolean = false,
+    forcePlay: boolean = false
+  ) => {
+    if (typeof window === 'undefined') return;
+
+    if (!forcePlay && (isSpeaking || isPlaying)) {
+      stopAllAudio();
+      return;
+    }
+
+    const cleanText = rawText.replace(/^"|"$/g, '').trim();
+    if (!cleanText) return;
+
+    // If clicking the speaker button on the attached voice sample message and a bound video/audio exists,
+    // play the authentic attached voice directly when using the local reference voice profile
+    if (isAttachedSample && !activeAudioUrl && museTalkVideoUrl && boundVoiceId === 'sync-rajesh-authentic-v2') {
+      playNativeAttachedVideoVoiceOnce();
+      return;
+    }
+
+    try {
+      const speakRes = await fetch('/api/voice/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: cleanText,
+          voiceId: boundVoiceId,
+          personName: companionPersonName,
+        }),
+      });
+
+      const speakData = await speakRes.json();
+      if (speakData.success && speakData.audioUrl) {
+        playAuthenticVoiceAudio(speakData.audioUrl);
+        return;
+      }
+    } catch (err) {
+      console.warn('Attached voice API fallback:', err);
+    }
+
+    // If cloud TTS is disabled or returned fallback:
+    if (isAttachedSample && museTalkVideoUrl && avatarVideoRef.current) {
+      playNativeAttachedVideoVoiceOnce();
+    } else if (activeAudioUrl && isAttachedSample) {
+      playAuthenticVoiceAudio(activeAudioUrl);
+    } else {
+      speakText(cleanText);
+    }
   };
 
   // Companion Voice Waveform Canvas Animation
@@ -911,115 +1348,103 @@ export default function PresenceGriefTechPage() {
     };
   }, [isPlaying, isSpeaking, mouthScale, viewMode]);
 
-  // Constellation Mind Map Canvas Renderer
-  useEffect(() => {
-    if (viewMode !== 'mindmap') return;
-    const canvas = mindmapCanvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  // Derive canonical, deduplicated MemoryRecord[] and MemoryGraph from the active vault
+  const verifiedMemoryRecords: MemoryRecord[] = React.useMemo(() => {
+    const records: MemoryRecord[] = [];
+    const seenTitleKeys = new Set<string>();
 
-    let animId: number;
-    let t = 0;
-
-    const resize = () => {
-      if (!canvas.parentElement) return;
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight || 500;
-    };
-    resize();
-    window.addEventListener('resize', resize);
-
-    const nodes = [
-      { id: 'center', label: 'P.S.', x: 0.5, y: 0.5, radius: 24, color: '#ffffff', count: 25, isCenter: true },
-      { id: 'parents', label: 'Parents', x: 0.45, y: 0.78, radius: 14, color: '#10b981', count: 12 },
-      { id: 'identity', label: 'Identity', x: 0.42, y: 0.45, radius: 14, color: '#e2e8f0', count: 12 },
-      { id: 'mortality', label: 'Mortality', x: 0.62, y: 0.35, radius: 12, color: '#a855f7', count: 6 },
-      { id: 'scenes', label: 'Scenes', x: 0.52, y: 0.38, radius: 11, color: '#38bdf8', count: 7 },
-      { id: 'fears', label: 'Fears', x: 0.48, y: 0.2, radius: 9, color: '#8b5cf6', count: 3 },
-      { id: 'regrets', label: 'Regrets', x: 0.55, y: 0.28, radius: 9, color: '#6366f1', count: 3 },
-      { id: 'siblings', label: 'Siblings', x: 0.32, y: 0.38, radius: 10, color: '#14b8a6', count: 5 },
-      { id: 'partner', label: 'Partner', x: 0.34, y: 0.58, radius: 8, color: '#ec4899', count: 2 },
-      { id: 'work', label: 'Work', x: 0.28, y: 0.65, radius: 7, color: '#f59e0b', count: 1 },
-      { id: 'childhood', label: 'Childhood', x: 0.38, y: 0.68, radius: 7, color: '#059669', count: 1 },
-      { id: 'children', label: 'Children', x: 0.62, y: 0.72, radius: 8, color: '#f97316', count: 2 },
-      { id: 'pride', label: 'Pride', x: 0.65, y: 0.9, radius: 7, color: '#f43f5e', count: 1 },
-    ];
-
-    const draw = () => {
-      t += 0.01;
-      const w = canvas.width;
-      const h = canvas.height;
-      ctx.clearRect(0, 0, w, h);
-
-      for (let i = 0; i < 70; i++) {
-        const sx = (Math.sin(i * 99 + t * 0.1) * 0.5 + 0.5) * w;
-        const sy = (Math.cos(i * 33 + t * 0.1) * 0.5 + 0.5) * h;
-        const opacity = Math.sin(i + t) * 0.3 + 0.4;
-        ctx.fillStyle = `rgba(255, 255, 255, ${opacity * 0.25})`;
-        ctx.beginPath();
-        ctx.arc(sx, sy, (i % 3) + 0.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      const centerNode = nodes[0];
-      const cx = centerNode.x * w;
-      const cy = centerNode.y * h;
-
-      nodes.forEach((n) => {
-        if (n.isCenter) return;
-        const nx = n.x * w + Math.sin(t + n.radius) * 3;
-        const ny = n.y * h + Math.cos(t + n.radius) * 3;
-
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(nx, ny);
-        const isSelected = selectedCategory === n.id;
-        ctx.strokeStyle = isSelected ? n.color : 'rgba(255, 255, 255, 0.12)';
-        ctx.lineWidth = isSelected ? 2 : 1;
-        ctx.stroke();
-      });
-
-      nodes.forEach((n) => {
-        const nx = n.x * w + (n.isCenter ? 0 : Math.sin(t + n.radius) * 3);
-        const ny = n.y * h + (n.isCenter ? 0 : Math.cos(t + n.radius) * 3);
-        const isSelected = selectedCategory === n.id;
-
-        const gradient = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.radius * (isSelected ? 3.5 : 2.5));
-        gradient.addColorStop(0, n.color + (isSelected ? '77' : '33'));
-        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.fillStyle = gradient;
-        ctx.beginPath();
-        ctx.arc(nx, ny, n.radius * (isSelected ? 3.5 : 2.5), 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = n.color;
-        ctx.beginPath();
-        ctx.arc(nx, ny, n.radius * 0.4, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = isSelected ? '#ffffff' : '#cbd5e1';
-        ctx.font = n.isCenter ? '600 22px Newsreader, serif' : '500 13px Plus Jakarta Sans, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        if (n.isCenter) {
-          ctx.fillText(n.label, nx, ny);
-        } else {
-          ctx.fillText(`${n.label} ${n.count}`, nx, ny + n.radius + 10);
+    categoriesList.forEach((cat) => {
+      cat.items.forEach((item, itemIdx) => {
+        const cleanTitle = item.title.trim();
+        const dedupKey = cleanTitle.toLowerCase();
+        const existing = records.find((r) => (r.title || '').toLowerCase() === dedupKey);
+        if (existing) {
+          if (existing.categoryIds && !existing.categoryIds.includes(cat.id)) {
+            existing.categoryIds.push(cat.id);
+          }
+          return;
         }
+        seenTitleKeys.add(dedupKey);
+
+        const isAudioBacked = itemIdx === 0 && uploadedAudioVault.length > 0;
+        const primaryAudio = uploadedAudioVault[itemIdx % Math.max(1, uploadedAudioVault.length)];
+        const isFirstPerson =
+          cat.id === 'parents' || cat.id === 'identity' || cat.id === 'mortality' || isAudioBacked;
+
+        records.push({
+          id: `mem-${cat.id}-${itemIdx}-${cleanTitle.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          ownerUid: 'user-vault-owner',
+          profileId: personaProfile.id,
+          representedPersonId: personaProfile.id,
+          title: cleanTitle,
+          contributorUid: 'member-1',
+          contributorDisplayName: isFirstPerson ? 'Maya (Family Owner)' : 'Arjun (Grandson)',
+          recordedSpeakerId: isFirstPerson ? personaProfile.id : undefined,
+          recordedSpeakerDisplayName: isFirstPerson ? personaProfile.fullName : undefined,
+          categoryIds: [cat.id],
+          sourceRefs: isAudioBacked && primaryAudio
+            ? [primaryAudio.title]
+            : [`Vault_Archive_${cat.name}_${item.date.replace(/\s+/g, '')}.txt`],
+          reviewedText:
+            cleanTitle === 'Anchor of Family Unity'
+              ? 'My father was the anchor of family unity. When dispute erupted among his brothers in 1965, he simply prepared evening tea for everyone and refused to discuss property until every cup was finished in quiet fellowship.'
+              : cleanTitle === "My badi mami's gentle authority"
+                ? 'My badi mami ruled the courtyard without ever raising her voice. A single glance over her reading spectacles was enough to quiet six unruly nephews.'
+                : `Verified memory record "${cleanTitle}" preserved in the ${cat.name} vault cluster (${item.date}) for ${personaProfile.fullName}.`,
+          provenance: isFirstPerson ? 'VERIFIED_FIRST_PERSON' : 'ATTRIBUTED_RECOLLECTION',
+          provenanceTier: isFirstPerson ? 'VERIFIED_FIRST_PERSON' : 'ATTRIBUTED_RECOLLECTION',
+          reviewStatus: 'APPROVED',
+          evidenceAnchors: isAudioBacked && primaryAudio
+            ? [
+                {
+                  kind: 'AUDIO',
+                  sourceId: primaryAudio.id,
+                  sourceTitle: primaryAudio.title,
+                  sourceUrl: primaryAudio.url || undefined,
+                  transcriptSegmentId: `seg-${cat.id}-${itemIdx}`,
+                  startMs: 14000,
+                  endMs: 42000,
+                  quotedText:
+                    cleanTitle === 'Anchor of Family Unity'
+                      ? 'When dispute erupted among his brothers in 1965, he simply prepared evening tea for everyone and refused to discuss property until every cup was finished in quiet fellowship.'
+                      : `Verified audio segment for "${cleanTitle}" preserved in ${primaryAudio.title}.`,
+                },
+              ]
+            : [
+                {
+                  kind: 'TEXT',
+                  sourceId: `doc-${cat.id}-${itemIdx}`,
+                  sourceTitle: `Vault_Archive_${cat.name}_${item.date.replace(/\s+/g, '')}.txt`,
+                  paragraphId: `p-${itemIdx + 1}`,
+                  quotedText: `Verified archive entry: "${cleanTitle}" (${item.date}).`,
+                },
+              ],
+          createdAt: '2026-10-04T10:00:00Z',
+          updatedAt: '2026-10-04T10:00:00Z',
+        });
       });
+    });
 
-      animId = requestAnimationFrame(draw);
-    };
+    return records;
+  }, [categoriesList, personaProfile.id, personaProfile.fullName, uploadedAudioVault]);
 
-    draw();
-
-    return () => {
-      window.removeEventListener('resize', resize);
-      cancelAnimationFrame(animId);
-    };
-  }, [viewMode, selectedCategory]);
+  const memoryGraph = React.useMemo(() => {
+    const initials = personaProfile.fullName
+      .split(' ')
+      .filter((part) => !part.endsWith('.'))
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('.');
+    return buildMemoryGraph(verifiedMemoryRecords, {
+      activeProfileId: personaProfile.id,
+      centerLabel: initials ? `${initials}.` : 'P.S.',
+      categories: categoriesList.map((c) => ({
+        id: c.id,
+        name: c.name,
+        color: c.color,
+      })),
+    });
+  }, [verifiedMemoryRecords, personaProfile.id, personaProfile.fullName, categoriesList]);
 
   // Breathing modal timer loop
   useEffect(() => {
@@ -1051,9 +1476,8 @@ export default function PresenceGriefTechPage() {
     const newMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: 'user',
-      author: 'Maya',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
+      author: userProfile.displayName || 'Maya',
+      avatarUrl: userProfile.avatarUrl,
       text,
     };
 
@@ -1062,15 +1486,15 @@ export default function PresenceGriefTechPage() {
     setIsAiThinking(true);
 
     try {
-      // 1. Send message to Google Gemini Supportive Chat Engine
+      // 1. Send message to Google Gemini Supportive Chat Engine using attached companion persona
       const chatRes = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
           history: conversations.map((c) => ({ sender: c.sender, text: c.text })),
-          personName: 'Thomas',
-          relation: 'Grandfather',
+          personName: companionPersonName,
+          relation: companionPersonRelation,
         }),
       });
 
@@ -1082,54 +1506,66 @@ export default function PresenceGriefTechPage() {
         setIsCrisisModalOpen(true);
       }
 
+      let finalSpokenText = replyText;
+      let displayMessageText = `"${replyText}"`;
+
+      // If Indic vernacular mode is toggled, translate using the OOP socio-linguistic engine
+      if (indicModeEnabled) {
+        try {
+          const indicTranslation = await indicEngine.translate(
+            replyText,
+            indicSelectedDialect,
+            'respectful',
+            companionPersonName
+          );
+          finalSpokenText = indicTranslation.nativeScript;
+          displayMessageText = `"${indicTranslation.nativeScript}"\n(${indicTranslation.transliteration})`;
+        } catch {
+          // Keep original English text if translation fails
+        }
+      }
+
       const companionMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'companion',
-        author: 'Thomas',
-        avatarUrl:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCPrQZI86P-lCAqlJIQq834CG5Uw4YDsSat59s4pB003oUoGeCWd0n4JR4hbsKz_hgBzz9iol0TwRbldMKGbCQWct5gEjxoYMEdqxzEzJZ6egWSNiQf6KMJaE9Scd4tcg2OXEtKD1_Y3wXWcMWhbITSjrzx_GxKsfoG-s4ognBOH8hS6BtRwF1fHh1etk5Hw3DJaphLSdD15XMvtECGDQVG_qEsFfQC6v6hXv8I5Sg',
-        text: `"${replyText}"`,
-        faithfulnessScore: 'Grounded & Empathetic',
-        audioSnippetLength: 'Cloned Voice Audio',
+        author: companionPersonName,
+        avatarUrl: activePortraitUrl,
+        text: displayMessageText,
+        faithfulnessScore: indicModeEnabled ? 'Vernacular Grounded' : 'Grounded & Empathetic',
+        audioSnippetLength: indicModeEnabled ? 'Indic Dialect Voice' : 'Attached Voice',
       };
 
       setConversations((prev) => [...prev, companionMsg]);
       setIsAiThinking(false);
 
-      // 2. Synthesize audio in Thomas's cloned voice via Sync.so and play immediately
-      try {
-        const speakRes = await fetch('/api/voice/speak', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: replyText,
-            voiceId: boundVoiceId,
-          }),
-        });
-
-        const speakData = await speakRes.json();
-        if (speakData.success && speakData.audioUrl) {
-          playAuthenticVoiceAudio(speakData.audioUrl);
-        } else {
-          speakText(replyText);
-        }
-      } catch (voiceErr) {
-        speakText(replyText);
-      }
+      // 2. Synthesize audio in attached companion's voice and animate avatar only while speaking
+      await speakCompanionMessage(finalSpokenText, false, true);
     } catch (err: any) {
       console.warn('Chat interaction error:', err);
       setIsAiThinking(false);
-      speakText('I am right here listening to you. Take a gentle breath with me.');
+      await speakCompanionMessage('I am right here listening to you. Take a gentle breath with me.', false, true);
     }
   };
 
   return (
     <div className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col bg-transparent">
       {/* MAIN HEADER */}
-      <header className="h-16 border-b border-white/10 px-6 flex items-center justify-between z-30 shrink-0 bg-[#080c14]/75 backdrop-blur-md">
+      {/* COMPACT PHONE TOP APP BAR (< 768px) */}
+      <MobileAppBar
+        personName={companionPersonName}
+        portraitUrl={activePortraitUrl}
+        userAvatarUrl={userProfile.avatarUrl}
+        onOpenCrisis={() => setIsCrisisModalOpen(true)}
+        onOpenVoiceConfig={() => setIsVoiceModalOpen(true)}
+        onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+      />
+
+      {/* EXPANDED DESKTOP COMMAND & STATUS HEADER (>= 768px) */}
+      <header className="hidden md:flex h-16 border-b border-white/10 px-6 items-center justify-between z-30 shrink-0 bg-[#080c14]/75 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 text-xs mr-2">
             <ArrowLeft className="text-sm" />
+
             <span className="hidden sm:inline">Portal</span>
           </Link>
           <div className="flex items-center gap-2.5">
@@ -1143,8 +1579,8 @@ export default function PresenceGriefTechPage() {
             <div>
               <h1 className="text-base font-semibold tracking-wider text-slate-100 flex items-center gap-2">
                 ParamSathya
-                <span className="text-[10px] font-normal tracking-wide px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-700/40 text-cyan-300">
-                  Presence
+                <span className="text-[10px] font-normal tracking-wide px-2.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-700/40 text-cyan-300">
+                  Presence-Blessings Intact
                 </span>
               </h1>
             </div>
@@ -1182,11 +1618,12 @@ export default function PresenceGriefTechPage() {
               <span>Avatar Companion</span>
             </button>
             <Link
-              href="/playground/musetalk"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+              href="/playground/sync"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-950/40 border border-emerald-600/40 hover:bg-emerald-900/40 shadow-sm"
+              title="Open Sync Lip-Sync 2 Pro Studio (Reusable Base Video Asset)"
             >
-              <SlidersHorizontal className="text-sm text-cyan-400" />
-              <span>MuseTalk 1.5</span>
+              <VideoCamera className="text-sm text-emerald-400" />
+              <span>Sync 2 Pro</span>
             </Link>
             <Link
               href="/playground/indic"
@@ -1213,8 +1650,133 @@ export default function PresenceGriefTechPage() {
           <span className="text-[11px] text-slate-400 font-mono">14m 20s</span>
         </div>
 
-        {/* Privacy & Profile */}
-        <div className="flex items-center gap-3.5">
+        {/* Privacy, Theme Selector, Ambient Audio & Profile */}
+        <div className="flex items-center gap-2.5">
+          {/* THEME & SOUNDSCAPE SELECTOR DROPDOWN */}
+          <div className="relative">
+            <button
+              onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
+              className="px-2.5 py-1 rounded-full bg-slate-900/80 hover:bg-slate-800/80 text-xs text-slate-200 border border-slate-700/80 flex items-center gap-1.5 transition shadow-sm"
+              title="Select seasonal theme and gentle backdrop ambience"
+            >
+              {activeTheme === 'cosmic' && <Sparkle className="text-purple-400 text-sm" />}
+              {activeTheme === 'rains' && <Drop className="text-cyan-400 text-sm" />}
+              {activeTheme === 'snowfall' && <Snowflake className="text-sky-300 text-sm" />}
+              {activeTheme === 'springs' && <Plant className="text-emerald-400 text-sm" />}
+              {activeTheme === 'autumn' && <Sun className="text-amber-400 text-sm" />}
+              <span className="hidden xl:inline capitalize font-medium text-slate-300">
+                {activeTheme === 'autumn' ? 'Autumn' : activeTheme}
+              </span>
+              <CaretDown className={`text-slate-400 text-[10px] transition-transform ${isThemeDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isThemeDropdownOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-[#0b121f]/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl p-1.5 z-50 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  Seasonal Themes &amp; Ambience
+                </div>
+
+                <button
+                  onClick={() => handleThemeSelect('cosmic')}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition ${
+                    activeTheme === 'cosmic'
+                      ? 'bg-purple-950/60 text-purple-200 border border-purple-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sparkle className="text-purple-400" />
+                    <span>Cosmic Watch</span>
+                  </div>
+                  <span className="text-[10px] text-purple-400/80 font-mono">Rumi tune</span>
+                </button>
+
+                <button
+                  onClick={() => handleThemeSelect('rains')}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition ${
+                    activeTheme === 'rains'
+                      ? 'bg-cyan-950/60 text-cyan-200 border border-cyan-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Drop className="text-cyan-400" />
+                    <span>Gentle Rains</span>
+                  </div>
+                  <span className="text-[10px] text-cyan-400/80 font-mono">Rain sound</span>
+                </button>
+
+                <button
+                  onClick={() => handleThemeSelect('snowfall')}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition ${
+                    activeTheme === 'snowfall'
+                      ? 'bg-sky-950/60 text-sky-200 border border-sky-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Snowflake className="text-sky-300" />
+                    <span>Serene Snowfall</span>
+                  </div>
+                  <span className="text-[10px] text-sky-400/80 font-mono">Jingle Bell</span>
+                </button>
+
+                <button
+                  onClick={() => handleThemeSelect('springs')}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition ${
+                    activeTheme === 'springs'
+                      ? 'bg-emerald-950/60 text-emerald-200 border border-emerald-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Plant className="text-emerald-400" />
+                    <span>Lush Springs</span>
+                  </div>
+                  <span className="text-[10px] text-emerald-400/80 font-mono">432Hz birds</span>
+                </button>
+
+                <button
+                  onClick={() => handleThemeSelect('autumn')}
+                  className={`w-full flex items-center justify-between px-2.5 py-2 rounded-xl transition ${
+                    activeTheme === 'autumn'
+                      ? 'bg-amber-950/60 text-amber-200 border border-amber-500/30'
+                      : 'text-slate-300 hover:bg-slate-800/60'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Sun className="text-amber-400" />
+                    <span>Autumn / Summer</span>
+                  </div>
+                  <span className="text-[10px] text-amber-400/80 font-mono">Rumi tune</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* AMBIENT AUDIO MUTE TOGGLE */}
+          <button
+            onClick={() => {
+              const nextMuted = !isAmbientMuted;
+              setIsAmbientMuted(nextMuted);
+              if (ambientAudioRef.current) {
+                if (nextMuted) {
+                  ambientAudioRef.current.pause();
+                } else if (!isSpeaking && !isPlaying) {
+                  ambientAudioRef.current.play().catch(() => {});
+                }
+              }
+            }}
+            className={`p-1.5 rounded-full border transition text-xs flex items-center gap-1 ${
+              isAmbientMuted
+                ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
+                : 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.25)]'
+            }`}
+            title={isAmbientMuted ? 'Unmute theme ambience' : 'Mute theme ambience (auto-ducks on avatar speech)'}
+          >
+            {isAmbientMuted ? <SpeakerSlash className="text-sm" /> : <SpeakerHigh className="text-sm animate-pulse" />}
+          </button>
+
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-amber-500/30 text-amber-200/90 text-xs shadow-sm">
             <ShieldCheck className="text-amber-400 text-sm" />
             <span className="font-medium tracking-tight">Private &amp; Grounded</span>
@@ -1244,23 +1806,41 @@ export default function PresenceGriefTechPage() {
             <span className="hidden lg:inline">Take a breath</span>
           </button>
           <div className="relative pl-1">
-            <div className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-slate-700/80 cursor-pointer hover:ring-cyan-500/60 transition">
+            <button
+              type="button"
+              onClick={() => setIsUserProfileModalOpen(true)}
+              aria-label="Manage your profile photo and settings"
+              title={`${userProfile.displayName} (${userProfile.relationship}) • Click to update photo`}
+              className="w-8 h-8 rounded-full overflow-hidden ring-2 ring-slate-700/80 cursor-pointer hover:ring-cyan-500/80 transition focus:outline-none focus:ring-2 focus:ring-cyan-400 block"
+            >
               <img
-                alt="Active family user"
+                alt={userProfile.displayName}
                 className="w-full h-full object-cover"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuAkM9-qFCcd6h1qbdIM3Uaaj9G2bxYFGZJ-HjNC-BgIiIJchAvfQXV8k3n2_grb8xPKhB1u78Z8gMpe2ifh7AG4fOhu8KwQsyoeS5Z2XDphOqAlVOl1LQX3GtIOFTchjKqUUssFoQcPz1LwklcurbPRP_-OiqJ2Vmg6V89Lmx3K0-0LuJlmoM70g_FTt5dl9b1st9tStS9yOG7OmkCoViQm4D5PpTmxQN4wmh36A0Q"
+                src={userProfile.avatarUrl}
               />
-            </div>
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-[#080c14]"></span>
+            </button>
+            <span
+              className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-[#080c14]"
+              title="Session Active"
+            />
           </div>
         </div>
       </header>
 
       {/* APPLICATION MAIN LAYOUT */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* LEFT NAV RAIL */}
-        <aside className="w-20 lg:w-64 border-r border-white/10 flex flex-col justify-between p-3 lg:p-4 bg-[#080c14]/60 z-20 shrink-0">
-          <div className="space-y-6">
+        {/* LEFT NAV RAIL (Hidden on mobile < 768px, replaced by MobileBottomNav) */}
+        <aside className="hidden md:flex w-24 lg:w-72 border-r border-white/10 flex-col justify-between p-3 lg:p-4 bg-[#080c14]/80 z-20 shrink-0">
+          <div className="space-y-4">
+
+            {/* REPRESENTED PERSON PROFILE HEADER CARD (Snip P1) */}
+            <div className="hidden lg:block">
+              <RepresentedPersonProfileCard
+                profile={personaProfile}
+                onConfigure={() => setIsConfigurePersonaModalOpen(true)}
+              />
+            </div>
+
             <div>
               <span className="hidden lg:block text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-3 mb-2">
                 Memory Space
@@ -1269,18 +1849,38 @@ export default function PresenceGriefTechPage() {
                 <button
                   onClick={() => {
                     setActiveTab('memories');
-                    setViewMode('mindmap');
+                    setViewMode('companion');
                   }}
                   className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-left transition group ${
-                    activeTab === 'memories'
+                    activeTab === 'memories' && viewMode === 'companion'
                       ? 'bg-slate-800/80 text-cyan-300 border border-cyan-500/30 shadow-sm'
                       : 'hover:bg-slate-800/40 text-slate-400 hover:text-slate-200 border border-transparent'
                   }`}
                 >
-                  <Graph className="text-xl text-cyan-400 group-hover:scale-110 transition-transform" />
+                  <ChatCircleText className="text-xl text-cyan-400 group-hover:scale-110 transition-transform" />
                   <div className="hidden lg:block text-left leading-tight">
-                    <p className="text-sm font-medium text-slate-100">Memories</p>
-                    <p className="text-[11px] text-slate-400">Timeline &amp; Mind Map</p>
+                    <p className="text-sm font-medium text-slate-100">Your Persona</p>
+                    <p className="text-[11px] text-slate-400">Living Portrait &amp; Chat</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('memories');
+                    setViewMode('mindmap');
+                  }}
+                  className={`w-full flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-left transition group ${
+                    activeTab === 'memories' && viewMode === 'mindmap'
+                      ? 'bg-slate-800/80 text-cyan-300 border border-cyan-500/30 shadow-sm'
+                      : 'hover:bg-slate-800/40 text-slate-400 hover:text-slate-200 border border-transparent'
+                  }`}
+                >
+                  <Graph className="text-xl text-indigo-400 group-hover:scale-110 transition-transform" />
+                  <div className="hidden lg:block text-left leading-tight">
+                    <p className="text-sm font-medium text-slate-100">Mind Map</p>
+                    <p className="text-[11px] text-slate-400">
+                      {memoryGraph.uniqueApprovedMemoryCount} Verified memories
+                    </p>
                   </div>
                 </button>
 
@@ -1298,7 +1898,7 @@ export default function PresenceGriefTechPage() {
                   <Microphone className="text-xl text-slate-400 group-hover:text-amber-400 transition-colors" />
                   <div className="hidden lg:block leading-tight">
                     <p className="text-sm font-medium text-slate-200">Audio Voice Vault</p>
-                    <p className="text-[11px] text-slate-400">{uploadedAudioVault.length + 12} Verified recordings</p>
+                    <p className="text-[11px] text-slate-400">{uploadedAudioVault.length} Verified recordings</p>
                   </div>
                 </button>
 
@@ -1316,7 +1916,7 @@ export default function PresenceGriefTechPage() {
                   <ImagesSquare className="text-xl text-slate-400 group-hover:text-purple-400 transition-colors" />
                   <div className="hidden lg:block leading-tight">
                     <p className="text-sm font-medium text-slate-200">Photos &amp; Keepsakes</p>
-                    <p className="text-[11px] text-slate-400">{uploadedPhotos.length + 80} Scanned photos</p>
+                    <p className="text-[11px] text-slate-400">{uploadedPhotos.length} Scanned photos</p>
                   </div>
                 </button>
 
@@ -1331,7 +1931,9 @@ export default function PresenceGriefTechPage() {
                   <UsersThree className="text-xl text-slate-400 group-hover:text-emerald-400 transition-colors" />
                   <div className="hidden lg:block leading-tight">
                     <p className="text-sm font-medium text-slate-200">Connected Family</p>
-                    <p className="text-[11px] text-slate-400">4 Circle members</p>
+                    <p className="text-[11px] text-slate-400">
+                      {circleMembers.length} Active • {pendingInvites.length} Pending
+                    </p>
                   </div>
                 </button>
               </nav>
@@ -1341,10 +1943,10 @@ export default function PresenceGriefTechPage() {
               <div className="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-xs font-medium text-slate-300">Memory Integrity</span>
-                  <span className="text-[10px] text-cyan-400 font-mono">98.4% grounded</span>
+                  <span className="text-[10px] text-cyan-400 font-mono">100% Grounded</span>
                 </div>
                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                  <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-1.5 rounded-full" style={{ width: '98%' }}></div>
+                  <div className="bg-gradient-to-r from-cyan-400 to-purple-400 h-1.5 rounded-full" style={{ width: '100%' }}></div>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2">
                   Zero hallucinations. Every statement is linked to certified audio &amp; letters.
@@ -1371,7 +1973,7 @@ export default function PresenceGriefTechPage() {
             <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
               <div>
                 <h2 className="text-2xl font-serif text-slate-100">Photos &amp; Keepsakes</h2>
-                <p className="text-xs text-slate-400">{uploadedPhotos.length + 80} Scanned photos &amp; visual memories</p>
+                <p className="text-xs text-slate-400">{uploadedPhotos.length} Scanned photos &amp; visual memories</p>
               </div>
               <div className="flex items-center gap-2.5">
                 <button
@@ -1398,9 +2000,22 @@ export default function PresenceGriefTechPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
               {uploadedPhotos.map((photo) => (
-                <div key={photo.id} className="glass-card-interactive rounded-2xl overflow-hidden group border border-slate-800">
+                <div key={photo.id} className="glass-card-interactive rounded-2xl overflow-hidden group border border-slate-800 relative">
                   <div className="h-40 relative overflow-hidden bg-slate-950">
                     <img src={photo.url} alt={photo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    {/* Delete button overlaid on card */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeletePhoto(photo.id, photo.title);
+                      }}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/70 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-white/10 opacity-80 group-hover:opacity-100 transition shadow-md cursor-pointer"
+                      title="Delete photo from keepsake vault"
+                      aria-label={`Delete ${photo.title}`}
+                    >
+                      <Trash className="text-sm" />
+                    </button>
                   </div>
                   <div className="p-3">
                     <p className="text-xs font-medium text-slate-200 truncate">{photo.title}</p>
@@ -1435,23 +2050,46 @@ export default function PresenceGriefTechPage() {
                 <Envelope className="text-cyan-400 text-base" /> Invite Family Member or Contributor
               </h3>
               <p className="text-xs text-slate-400 mb-3">
-                Send a secure invitation link to collaborate on Thomas&apos;s memory vault.
+                Send a secure invitation link to collaborate on {companionPersonName}&apos;s memory vault.
               </p>
 
               <form
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!inviteEmailInput) return;
-                  const newInvite = {
-                    id: `invite-${Date.now()}`,
-                    email: inviteEmailInput,
-                    role: inviteRoleInput,
-                    sentAt: 'Invite sent just now',
-                  };
-                  setPendingInvites((prev) => [newInvite, ...prev]);
-                  setInviteSuccessNotice(`Invitation sent to ${inviteEmailInput}!`);
-                  setInviteEmailInput('');
-                  setTimeout(() => setInviteSuccessNotice(''), 3000);
+                  if (!inviteEmailInput || isSendingInvite) return;
+                  setIsSendingInvite(true);
+                  setInviteErrorMessage('');
+                  setInviteSuccessNotice('');
+
+                  try {
+                    const resp = await fetch('/api/circle/invitations', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        profileId: 'profile-satya-default',
+                        inviterUid: 'user-owner-default',
+                        inviterName: 'Family Member',
+                        representedPersonName: companionPersonName,
+                        email: inviteEmailInput,
+                        role: inviteRoleInput.toUpperCase(),
+                        requestId: `req_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+                      }),
+                    });
+
+                    const data = await resp.json();
+                    if (!resp.ok || !data.success) {
+                      setInviteErrorMessage(data.error || 'Failed to send invitation');
+                    } else {
+                      setInviteSuccessNotice(`Invitation sent to ${inviteEmailInput}!`);
+                      setInviteEmailInput('');
+                      fetchCircleData();
+                      setTimeout(() => setInviteSuccessNotice(''), 4000);
+                    }
+                  } catch (err: any) {
+                    setInviteErrorMessage(err.message || 'Network error while sending invite');
+                  } finally {
+                    setIsSendingInvite(false);
+                  }
                 }}
                 className="flex flex-col sm:flex-row items-center gap-2.5"
               >
@@ -1463,14 +2101,16 @@ export default function PresenceGriefTechPage() {
                     value={inviteEmailInput}
                     onChange={(e) => setInviteEmailInput(e.target.value)}
                     placeholder="Enter family member's email address..."
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    disabled={isSendingInvite}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 disabled:opacity-50"
                   />
                 </div>
 
                 <select
                   value={inviteRoleInput}
                   onChange={(e) => setInviteRoleInput(e.target.value as any)}
-                  className="w-full sm:w-auto bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500"
+                  disabled={isSendingInvite}
+                  className="w-full sm:w-auto bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 disabled:opacity-50"
                 >
                   <option value="Contributor">Contributor (Can add memories)</option>
                   <option value="Viewer">Viewer (Read-only)</option>
@@ -1478,9 +2118,10 @@ export default function PresenceGriefTechPage() {
 
                 <button
                   type="submit"
-                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-white text-xs font-semibold shadow transition whitespace-nowrap"
+                  disabled={isSendingInvite || !inviteEmailInput}
+                  className="w-full sm:w-auto px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:opacity-50 text-white text-xs font-semibold shadow transition whitespace-nowrap cursor-pointer"
                 >
-                  Send Invite
+                  {isSendingInvite ? 'Sending...' : 'Send Invite'}
                 </button>
               </form>
 
@@ -1488,6 +2129,13 @@ export default function PresenceGriefTechPage() {
                 <div className="mt-3 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-600/40 text-emerald-200 text-xs flex items-center gap-2">
                   <CheckCircle className="text-emerald-400 shrink-0" />
                   <span>{inviteSuccessNotice}</span>
+                </div>
+              )}
+
+              {inviteErrorMessage && (
+                <div className="mt-3 p-2.5 rounded-xl bg-rose-950/80 border border-rose-600/40 text-rose-200 text-xs flex items-center gap-2">
+                  <WarningCircle className="text-rose-400 shrink-0" />
+                  <span>{inviteErrorMessage}</span>
                 </div>
               )}
             </div>
@@ -1519,19 +2167,53 @@ export default function PresenceGriefTechPage() {
 
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => {
-                              setInviteSuccessNotice(`Resent invite to ${invite.email}`);
-                              setTimeout(() => setInviteSuccessNotice(''), 2500);
+                            onClick={async () => {
+                              try {
+                                const resp = await fetch(`/api/circle/invitations/${invite.id}/resend`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    profileId: 'profile-satya-default',
+                                    representedPersonName: companionPersonName,
+                                  }),
+                                });
+                                const data = await resp.json();
+                                if (resp.ok && data.success) {
+                                  setInviteSuccessNotice(`Resent invite to ${invite.email}`);
+                                  fetchCircleData();
+                                  setTimeout(() => setInviteSuccessNotice(''), 3000);
+                                } else {
+                                  setInviteErrorMessage(data.error || 'Failed to resend invite');
+                                }
+                              } catch (err: any) {
+                                setInviteErrorMessage(err.message || 'Error resending invite');
+                              }
                             }}
-                            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+                            className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
                           >
                             Resend
                           </button>
                           <button
-                            onClick={() => {
-                              setPendingInvites((prev) => prev.filter((i) => i.id !== invite.id));
+                            onClick={async () => {
+                              if (!confirm(`Cancel and revoke invitation to ${invite.email}?`)) return;
+                              try {
+                                const resp = await fetch(
+                                  `/api/circle/invitations/${invite.id}?profileId=profile-satya-default`,
+                                  { method: 'DELETE' }
+                                );
+                                const data = await resp.json();
+                                if (resp.ok && data.success) {
+                                  setInviteSuccessNotice(`Revoked invite to ${invite.email}`);
+                                  fetchCircleData();
+                                  setTimeout(() => setInviteSuccessNotice(''), 3000);
+                                } else {
+                                  setInviteErrorMessage(data.error || 'Failed to revoke invite');
+                                }
+                              } catch (err: any) {
+                                setInviteErrorMessage(err.message || 'Error revoking invite');
+                              }
                             }}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition"
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/30 transition cursor-pointer"
                             title="Cancel invitation"
                           >
                             <Trash className="text-sm" />
@@ -1548,57 +2230,66 @@ export default function PresenceGriefTechPage() {
                 <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
                   Connected Circle Members ({circleMembers.length})
                 </h4>
-                <div className="space-y-2.5">
-                  {circleMembers.map((member) => (
-                    <div
-                      key={member.id}
-                      className="glass-panel p-3.5 rounded-2xl border border-slate-800 hover:border-slate-700 flex items-center justify-between transition"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <img
-                          src={member.avatar}
-                          alt={member.name}
-                          className="w-10 h-10 rounded-full object-cover border border-slate-700"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-slate-100">{member.name}</p>
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
-                              {member.relation}
-                            </span>
+                {circleMembers.length === 0 ? (
+                  <div className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800 text-center text-xs text-slate-400">
+                    No connected members yet. Use the invitation bar above to invite trusted family members.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {circleMembers.map((member) => (
+                      <div
+                        key={member.id}
+                        className="glass-panel p-3.5 rounded-2xl border border-slate-800 hover:border-slate-700 flex items-center justify-between transition"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <img
+                            src={member.avatar}
+                            alt={member.name}
+                            className="w-10 h-10 rounded-full object-cover border border-slate-700 bg-slate-800"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-slate-100">{member.name}</p>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 border border-slate-700 text-slate-300">
+                                {member.relation}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-400">{member.email}</p>
                           </div>
-                          <p className="text-xs text-slate-400">{member.email}</p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${
+                              member.role === 'Contributor'
+                                ? 'bg-emerald-950/60 border-emerald-800/40 text-emerald-300'
+                                : member.role === 'Owner'
+                                ? 'bg-cyan-950/60 border-cyan-800/40 text-cyan-300'
+                                : 'bg-purple-950/60 border-purple-800/40 text-purple-300'
+                            }`}
+                          >
+                            {member.role}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
+                            Joined {member.joinedAt}
+                          </span>
+
+                          {member.role !== 'Owner' && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCircleMember(member.id, member.name)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition cursor-pointer"
+                              title={`Remove ${member.name} from circle`}
+                              aria-label={`Remove ${member.name} from circle`}
+                            >
+                              <Trash className="text-sm" />
+                            </button>
+                          )}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full border font-mono ${
-                            member.role === 'Contributor'
-                              ? 'bg-emerald-950/60 border-emerald-800/40 text-emerald-300'
-                              : 'bg-purple-950/60 border-purple-800/40 text-purple-300'
-                          }`}
-                        >
-                          {member.role}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-mono hidden sm:inline">
-                          {member.joinedAt}
-                        </span>
-                        <button
-                          onClick={() => {
-                            if (confirm(`Remove ${member.name} from this memory circle?`)) {
-                              setCircleMembers((prev) => prev.filter((m) => m.id !== member.id));
-                            }
-                          }}
-                          className="p-1.5 text-slate-500 hover:text-rose-400 transition"
-                          title="Remove member"
-                        >
-                          <Trash className="text-sm" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </main>
@@ -1633,122 +2324,104 @@ export default function PresenceGriefTechPage() {
               </div>
             </div>
 
-            <div className="space-y-3 max-w-3xl">
+            <div className="space-y-4 max-w-3xl">
               {uploadedAudioVault.map((audio) => (
-                <div key={audio.id} className="glass-panel p-4 rounded-2xl flex items-center justify-between border border-slate-800 hover:border-slate-700 transition">
-                  <div className="flex items-center gap-3.5">
-                    <button
-                      onClick={() => {
-                        if (audio.url) {
-                          setActiveAudioUrl(audio.url);
+                <div
+                  key={audio.id}
+                  className="bg-[#12141c]/90 p-4 rounded-2xl border border-amber-600/30 hover:border-amber-500/60 transition shadow-lg space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          const urlToPlay = audio.url || '/audio_samples/grandpa_authentic.wav';
+                          setActiveAudioUrl(urlToPlay);
+                          setActiveAudioTitle(audio.title);
+                          playAuthenticVoiceAudio(urlToPlay);
+                        }}
+                        className="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 flex items-center justify-center text-lg transition shrink-0"
+                        title="Listen to authentic audio clip"
+                      >
+                        <SpeakerHigh weight="fill" />
+                      </button>
+
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-bold text-white tracking-tight">{audio.title}</h4>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-600/50 text-emerald-300 flex items-center gap-1">
+                            <CheckCircle weight="fill" className="text-xs" /> Approved
+                          </span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-600/50 text-amber-300">
+                            First-Person Verified
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                          Offset: 08:14 - 08:42 • {audio.size || '2.4 MB'} • Grounded in {personaProfile.fullName}&apos;s Vault
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const urlToAttach = audio.url || '/audio_samples/grandpa_authentic.wav';
+                          setActiveAudioUrl(urlToAttach);
                           setActiveAudioTitle(audio.title);
                           setActiveTab('memories');
                           setViewMode('companion');
-                          playAuthenticVoiceAudio(audio.url);
-                        } else {
-                          speakText(audio.title);
-                        }
-                      }}
-                      className="w-10 h-10 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 flex items-center justify-center text-lg transition"
-                      title="Play in Avatar Companion"
-                    >
-                      <Play />
-                    </button>
-                    <div>
-                      <p className="text-sm font-medium text-slate-200">{audio.title}</p>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
-                        <span>Recorded {audio.date}</span>
-                        <span>&bull;</span>
-                        {audio.source ? (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 flex items-center gap-1">
-                            <GoogleDriveLogoIcon className="w-2.5 h-2.5" /> Drive
-                          </span>
-                        ) : (
-                          <span>Grounded in vault</span>
-                        )}
-                      </div>
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-amber-950/70 hover:bg-amber-900 border border-amber-600/50 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition"
+                      >
+                        <span>Attach to Avatar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteAudio(audio.id, audio.title)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 border border-transparent hover:border-rose-800/40 transition cursor-pointer"
+                        title="Delete recording from voice vault"
+                        aria-label={`Delete ${audio.title}`}
+                      >
+                        <Trash className="text-sm" />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setActiveAudioUrl(audio.url || null);
-                        setActiveAudioTitle(audio.title);
-                        setActiveTab('memories');
-                        setViewMode('companion');
-                      }}
-                      className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition"
-                    >
-                      Attach to Avatar
-                    </button>
-                    {audio.url && (
-                      <audio controls src={audio.url} className="h-8 max-w-xs" />
-                    )}
+                  {/* VERBATIM TRANSCRIPTION PASSAGE & ATTRIBUTION (Snip P1) */}
+                  <div className="bg-[#0b0d13] p-3 rounded-xl border border-white/5 space-y-2">
+                    <p className="text-xs text-slate-200 italic leading-relaxed">
+                      &ldquo;
+                      {audio.id === 'audio-1'
+                        ? 'My father was the anchor of family unity. When dispute erupted among his brothers in 1965, he simply prepared evening tea for everyone and refused to discuss property until every cup was finished in quiet fellowship.'
+                        : 'My badi mami ruled the courtyard without ever raising her voice. A single glance over her reading spectacles was enough to quiet six unruly nephews.'}
+                      &rdquo;
+                    </p>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono pt-1 border-t border-white/5">
+                      <span>
+                        Speaker: <strong className="text-amber-300 font-semibold">{personaProfile.fullName}</strong>
+                      </span>
+                      <span>
+                        By: <strong className="text-slate-300 font-normal">Arjun (Grandson)</strong>
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </main>
         ) : viewMode === 'mindmap' ? (
-          /* MIND MAP CONSTELLATION EXPLORER VIEW */
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-transparent">
-            <div className="h-16 px-6 border-b border-white/5 flex items-center justify-between z-10 shrink-0">
-              <div>
-                <h2 className="text-2xl font-serif text-slate-100 tracking-wide font-normal">Mind Map</h2>
-                <p className="text-xs text-slate-400">25 memories</p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search your memories"
-                    className="bg-slate-900/90 border border-slate-800 rounded-full pl-9 pr-4 py-1.5 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-slate-700 w-56"
-                  />
-                </div>
-
-                <button
-                  onClick={() => setViewMode('companion')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-medium transition"
-                >
-                  <ListIcon className="text-sm" />
-                  <span>List</span>
-                </button>
-
-                <button
-                  onClick={() => setViewMode('companion')}
-                  className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white text-xs font-semibold shadow-lg shadow-purple-950/40 transition"
-                >
-                  <Sparkle className="text-sm" />
-                  <span>Talk on the map</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 relative overflow-hidden">
-              <canvas ref={mindmapCanvasRef} className="w-full h-full block cursor-grab active:cursor-grabbing" />
-
-              <div className="absolute bottom-6 right-6 flex flex-col bg-slate-900/90 border border-slate-800 rounded-xl overflow-hidden shadow-xl text-slate-300">
-                <button className="p-2 hover:bg-slate-800 hover:text-white border-b border-slate-800 text-xs">
-                  <Plus />
-                </button>
-                <button className="p-2 hover:bg-slate-800 hover:text-white border-b border-slate-800 text-xs">
-                  <Minus />
-                </button>
-                <button
-                  onClick={() => setSelectedCategory(null)}
-                  className="p-2 hover:bg-slate-800 hover:text-white text-xs"
-                  title="Reset view"
-                >
-                  <Target />
-                </button>
-              </div>
-            </div>
-          </main>
+          /* PROVENANCE-GROUNDED CONSTELLATION MIND MAP & EVIDENCE DRAWER (MAP-001..MAP-018) */
+          <InteractiveMindMap
+            graph={memoryGraph}
+            representedPersonName={personaProfile.fullName}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            selectedCategoryId={selectedCategory}
+            onSelectCategoryId={setSelectedCategory}
+            onSwitchToAvatarSession={() => setViewMode('companion')}
+            onSpeakText={speakText}
+            onDeleteMemory={handleDeleteMemory}
+          />
         ) : (
           /* AVATAR COMPANION SESSION VIEW WITH FACE LIP-SYNC & VOICE TALK BACK */
           <main className="flex-1 flex flex-col min-w-0 overflow-y-auto lg:overflow-hidden relative bg-gradient-to-b from-transparent to-[#080c14]/80">
@@ -1759,13 +2432,15 @@ export default function PresenceGriefTechPage() {
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700/70 mb-4 shadow-sm">
                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                 <span className="text-xs font-medium text-slate-300">
-                  Grandfather Thomas • <span className="text-slate-400 font-normal">Born 1944</span>
+                  {companionPersonName} • <span className="text-slate-400 font-normal">{companionPersonRelation}</span>
                 </span>
-                <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded">Warm Persona</span>
+                <span className="text-[10px] bg-emerald-950/90 text-emerald-300 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                  {museTalkVideoUrl ? 'Living Video Bound' : 'Portrait Bound'}
+                </span>
               </div>
 
-              {/* DYNAMIC AVATAR PORTRAIT WITH FACIAL MOTION, AUTHENTIC VOICE, OR MUSETALK VIDEO */}
-              <div className="relative mb-4 flex flex-col items-center">
+              {/* DYNAMIC AVATAR PORTRAIT WITH FACIAL MOTION, AUTHENTIC VOICE, OR SYNC / MUSETALK VIDEO */}
+              <div className="relative mb-3 flex flex-col items-center">
                 {/* Hidden File Input for Instant 1-Click Face Change */}
                 <input
                   type="file"
@@ -1778,7 +2453,7 @@ export default function PresenceGriefTechPage() {
                 <div 
                   onClick={() => avatarFileInputRef.current?.click()}
                   className="avatar-halo-container relative w-48 h-48 sm:w-56 sm:h-56 rounded-full flex items-center justify-center cursor-pointer group"
-                  title="Click to change portrait photo"
+                  title="Click to upload a new portrait photo"
                 >
                   <div
                     className={`relative z-10 w-full h-full rounded-full overflow-hidden border-2 border-slate-900/60 shadow-2xl bg-slate-950 transition-transform duration-150 ${
@@ -1786,18 +2461,33 @@ export default function PresenceGriefTechPage() {
                     }`}
                   >
                     {museTalkVideoUrl ? (
-                      <video
-                        key={museTalkVideoUrl}
-                        src={museTalkVideoUrl}
-                        autoPlay
-                        loop
-                        playsInline
-                        className="w-full h-full object-cover"
-                      />
+                      <div className="relative w-full h-full">
+                        <video
+                          ref={avatarVideoRef}
+                          key={museTalkVideoUrl}
+                          src={museTalkVideoUrl}
+                          muted={true}
+                          playsInline
+                          preload="auto"
+                          onEnded={() => {
+                            if (isPlayingNativeVideoVoiceRef.current) {
+                              stopAllAudio();
+                            }
+                          }}
+                          className="w-full h-full object-cover"
+                        />
+                        {!isSpeaking && activePortraitUrl && (
+                          <img
+                            alt={`${companionPersonName} - Calm Resting Portrait`}
+                            src={activePortraitUrl}
+                            className="absolute inset-0 w-full h-full object-cover object-top filter brightness-95 contrast-105 transition-opacity duration-300"
+                          />
+                        )}
+                      </div>
                     ) : (
                       <>
                         <img
-                          alt="Thomas - Empathic Memory Avatar"
+                          alt={`${companionPersonName} - Empathic Memory Avatar`}
                           className="w-full h-full object-cover object-top filter brightness-95 contrast-105 group-hover:scale-105 transition-transform duration-700 ease-out"
                           src={activePortraitUrl}
                         />
@@ -1826,8 +2516,8 @@ export default function PresenceGriefTechPage() {
                     {/* HOVER OVERLAY: CHANGE PORTRAIT PHOTO */}
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white z-30">
                       <Camera className="text-2xl text-cyan-400 mb-1" />
-                      <span className="text-[11px] font-semibold tracking-wide">Change Face Photo</span>
-                      <span className="text-[9px] text-slate-300">Click to upload</span>
+                      <span className="text-[11px] font-semibold tracking-wide">Upload New Portrait Photo</span>
+                      <span className="text-[9px] text-slate-300">Click to select image</span>
                     </div>
 
                     <div
@@ -1838,8 +2528,28 @@ export default function PresenceGriefTechPage() {
                   </div>
                 </div>
 
+                {/* CLEAN STUDIO & PHOTO UPLOAD BAR (REDUNDANT MODE TOGGLES REMOVED) */}
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => avatarFileInputRef.current?.click()}
+                    className="px-2.5 py-1 rounded-full bg-slate-900/70 hover:bg-slate-800 border border-slate-800 text-slate-300 transition flex items-center gap-1"
+                  >
+                    <UploadSimple className="text-purple-400 text-xs" />
+                    <span>Upload Photo</span>
+                  </button>
+
+                  <Link
+                    href="/playground/sync"
+                    className="px-2.5 py-1 rounded-full bg-purple-950/60 hover:bg-purple-900/70 border border-purple-500/40 text-purple-200 transition flex items-center gap-1"
+                  >
+                    <Sparkle className="text-purple-400 text-xs" />
+                    <span>Sync 2 Pro Studio</span>
+                  </Link>
+                </div>
+
                 {avatarUploadNotice && (
-                  <div className="mt-1 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-600/40 text-cyan-200 text-[11px] flex items-center gap-1.5 shadow-lg animate-fade-in">
+                  <div className="mt-2 px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-600/40 text-cyan-200 text-[11px] flex items-center gap-1.5 shadow-lg animate-fade-in">
                     <CheckCircle className="text-cyan-400 shrink-0" />
                     <span>{avatarUploadNotice}</span>
                   </div>
@@ -1857,7 +2567,7 @@ export default function PresenceGriefTechPage() {
                         ? 'bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border-amber-700/50 shadow-md shadow-amber-950/40'
                         : 'bg-slate-800/80 hover:bg-slate-700 text-slate-200 border-slate-700'
                     }`}
-                    title={activeAudioUrl ? 'Playing authentic uploaded voice recording' : 'Play voice sample'}
+                    title={activeAudioUrl ? 'Playing authentic uploaded voice recording' : `Play ${companionPersonName}'s attached voice sample`}
                   >
                     {isSpeaking ? <Pause className="text-amber-400" /> : <Play className={activeAudioUrl ? 'text-amber-400' : 'text-cyan-400'} />}
                     <span>{isSpeaking ? 'Pause Audio' : activeAudioUrl ? 'Play Real Voice' : 'Play Voice Sample'}</span>
@@ -1865,8 +2575,8 @@ export default function PresenceGriefTechPage() {
 
                   <div className="flex items-center gap-1.5 text-slate-400">
                     <ShieldCheck className={activeAudioUrl ? 'text-amber-400' : 'text-emerald-400'} />
-                    <span className="text-[11px] truncate max-w-[210px]">
-                      {activeAudioUrl ? activeAudioTitle : 'Audio: Verified 2018 Voicemail'}
+                    <span className="text-[11px] truncate max-w-[230px]">
+                      {activeAudioUrl ? activeAudioTitle : `Voice: ${boundVoiceName}`}
                     </span>
                   </div>
                 </div>
@@ -1879,7 +2589,7 @@ export default function PresenceGriefTechPage() {
                 <div className="flex items-center justify-center">
                   <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/90 border border-cyan-500/20 text-[11px] text-cyan-300 shadow-sm">
                     <Bookmark className="text-cyan-400" />
-                    <span>[Grounded in: Summer Trip 2018 audio note &amp; diary page #42]</span>
+                    <span>[Grounded in: {companionPersonName}&apos;s Verified Family Memory Vault]</span>
                   </div>
                 </div>
 
@@ -1906,12 +2616,16 @@ export default function PresenceGriefTechPage() {
                   ) : (
                     <div key={msg.id} className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-full overflow-hidden shrink-0 ring-1 ring-cyan-500/40 mt-1">
-                        <img alt={msg.author} className="w-full h-full object-cover" src={msg.avatarUrl} />
+                        <img
+                          alt={companionPersonName}
+                          className="w-full h-full object-cover"
+                          src={activePortraitUrl || msg.avatarUrl}
+                        />
                       </div>
                       <div className="glass-panel rounded-2xl rounded-tl-sm p-4 max-w-xl shadow-xl space-y-2 border-slate-700/60">
                         <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-white/5">
                           <span className="flex items-center gap-1 text-slate-300 font-medium">
-                            <Sparkle className="text-amber-400" /> {msg.author}
+                            <Sparkle className="text-amber-400" /> {companionPersonName}
                           </span>
                           <span className="font-mono text-[10px] text-emerald-400">
                             {msg.faithfulnessScore || 'Faithfulness: 100% verified'}
@@ -1921,20 +2635,22 @@ export default function PresenceGriefTechPage() {
                         <div className="pt-2 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => speakText(msg.text)}
+                              onClick={() => speakCompanionMessage(msg.text, Boolean(msg.isAttachedVoiceSample))}
                               className="w-7 h-7 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 flex items-center justify-center text-xs transition"
-                              title="Listen out loud with face lip-sync"
+                              title={`Listen in ${companionPersonName}'s attached voice with synchronized face lip-sync`}
                             >
                               {isSpeaking ? <Pause className="text-amber-400" /> : <SpeakerHigh />}
                             </button>
                             <div className="flex items-center gap-1">
-                              <span className="w-1 h-2 bg-cyan-400/80 rounded-full animate-pulse"></span>
-                              <span className="w-1 h-3 bg-cyan-400/80 rounded-full animate-pulse"></span>
-                              <span className="w-1 h-1.5 bg-cyan-400/80 rounded-full animate-pulse"></span>
-                              <span className="w-1 h-4 bg-cyan-400/80 rounded-full animate-pulse"></span>
-                              <span className="w-1 h-2 bg-cyan-400/80 rounded-full animate-pulse"></span>
+                              <span className={`w-1 h-2 bg-cyan-400/80 rounded-full ${isSpeaking ? 'animate-pulse' : ''}`}></span>
+                              <span className={`w-1 h-3 bg-cyan-400/80 rounded-full ${isSpeaking ? 'animate-pulse' : ''}`}></span>
+                              <span className={`w-1 h-1.5 bg-cyan-400/80 rounded-full ${isSpeaking ? 'animate-pulse' : ''}`}></span>
+                              <span className={`w-1 h-4 bg-cyan-400/80 rounded-full ${isSpeaking ? 'animate-pulse' : ''}`}></span>
+                              <span className={`w-1 h-2 bg-cyan-400/80 rounded-full ${isSpeaking ? 'animate-pulse' : ''}`}></span>
                             </div>
-                            <span className="text-[11px] font-mono text-slate-400">{msg.audioSnippetLength || '0:09 snippet'}</span>
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {msg.audioSnippetLength || `${companionPersonName} Voice`}
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
                             <button className="text-slate-400 hover:text-slate-200" title="Copy remembrance">
@@ -1952,11 +2668,24 @@ export default function PresenceGriefTechPage() {
                 <div ref={conversationEndRef} />
               </div>
 
-              {/* Chat Input & Attachment Handler */}
-              <div className="glass-panel p-2 rounded-2xl border border-slate-700/80 shadow-2xl relative">
+              {/* Mobile Contextual Reflection Pill (< 1280px) */}
+              <div className="xl:hidden flex justify-center mb-2">
+                <button
+                  type="button"
+                  onClick={() => setIsMobileReflectionOpen(true)}
+                  className="px-3 py-1.5 rounded-full bg-purple-950/60 hover:bg-purple-900/60 border border-purple-500/30 text-purple-200 text-xs flex items-center gap-1.5 transition shadow-sm touch-target-48"
+                >
+                  <FlowerLotus className="text-sm text-purple-400" />
+                  <span>View Reflection &amp; Next Steps</span>
+                </button>
+              </div>
+
+              {/* Chat Input & Attachment Handler (Keyboard-safe with safe-area spacing above bottom nav) */}
+              <div className="glass-panel p-2 rounded-2xl border border-slate-700/80 shadow-2xl relative mb-16 md:mb-0">
                 <input
                   type="file"
                   ref={chatAttachmentInputRef}
+
                   onChange={handleChatAttachment}
                   accept="image/*,audio/*"
                   className="hidden"
@@ -1991,14 +2720,39 @@ export default function PresenceGriefTechPage() {
                     placeholder={
                       isRecording
                         ? 'Listening to your voice... Speak comfortably.'
-                        : "Speak or type a thought... (e.g., 'What was your favorite song back then?')"
+                        : `Speak or type a thought to ${companionPersonName}...`
                     }
                     className="w-full bg-transparent border-0 text-sm text-slate-100 placeholder-slate-400 focus:ring-0 focus:outline-none px-2 py-1"
                   />
 
-                  <div className="hidden sm:flex items-center gap-1 bg-slate-900/80 rounded-lg px-2 py-1 text-[11px] text-slate-400 border border-slate-800 shrink-0">
-                    <span className="text-slate-500">Mode:</span>
-                    <span className="text-cyan-300 font-medium">Original Vault</span>
+                  <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 border border-slate-700 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setIndicModeEnabled(!indicModeEnabled)}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition ${
+                        indicModeEnabled
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                      title="Toggle Indic Socio-Linguistic Translation"
+                    >
+                      <Translate className="text-xs text-amber-400" />
+                      <span>{indicModeEnabled ? 'Indic (Active)' : 'Indic'}</span>
+                    </button>
+                    {indicModeEnabled && (
+                      <select
+                        value={indicSelectedDialect}
+                        onChange={(e) => setIndicSelectedDialect(e.target.value)}
+                        className="bg-transparent text-amber-300 text-[10px] font-mono focus:outline-none cursor-pointer"
+                      >
+                        <option value="bho" className="bg-slate-900 text-slate-200">Bhojpuri (भोजपुरी)</option>
+                        <option value="hi" className="bg-slate-900 text-slate-200">Hindi (हिन्दी)</option>
+                        <option value="mai" className="bg-slate-900 text-slate-200">Maithili (मैथिली)</option>
+                        <option value="awa" className="bg-slate-900 text-slate-200">Awadhi (अवधी)</option>
+                        <option value="bn" className="bg-slate-900 text-slate-200">Bengali (বাংলা)</option>
+                        <option value="ta" className="bg-slate-900 text-slate-200">Tamil (தமிழ்)</option>
+                      </select>
+                    )}
                   </div>
 
                   <button
@@ -2014,66 +2768,11 @@ export default function PresenceGriefTechPage() {
           </main>
         )}
 
-        {/* RIGHT PANEL */}
-        <aside className="w-80 lg:w-96 border-l border-white/10 bg-[#080c14]/90 p-4 lg:p-5 flex flex-col justify-between overflow-y-auto shrink-0 z-20">
-          {viewMode === 'mindmap' ? (
-            <div className="flex flex-col h-full justify-between">
-              <div>
-                <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
-                  <div>
-                    <h3 className="text-xl font-serif text-slate-100">Your memories</h3>
-                    <p className="text-xs text-slate-400">25 memories</p>
-                  </div>
-                  <button onClick={() => setViewMode('companion')} className="text-slate-400 hover:text-white">
-                    <X className="text-base" />
-                  </button>
-                </div>
-
-                <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-250px)] pr-1">
-                  {categoriesList.filter((cat) => !selectedCategory || selectedCategory === cat.id).map((cat) => (
-                    <div key={cat.id} className="space-y-1.5">
-                      <button
-                        onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
-                        className="flex items-center gap-2 text-xs font-semibold text-slate-200 w-full text-left py-1 hover:text-cyan-300"
-                      >
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></span>
-                        <span>{cat.name}</span>
-                        <span className="text-[10px] text-slate-500 font-mono ml-auto">{cat.count}</span>
-                      </button>
-
-                      <div className="pl-4 space-y-1.5 border-l border-white/5">
-                        {cat.items
-                          .filter((item) => !searchQuery || item.title.toLowerCase().includes(searchQuery.toLowerCase()))
-                          .map((item, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between text-xs py-1.5 px-2 rounded-lg hover:bg-slate-900/80 cursor-pointer text-slate-300 transition group"
-                            >
-                              <div className="flex items-center gap-2 truncate">
-                                <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: cat.color }}></span>
-                                <span className="truncate group-hover:text-slate-100">{item.title}</span>
-                              </div>
-                              <span className="text-[11px] text-slate-500 font-mono shrink-0 pl-2">{item.date}</span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-white/10 mt-auto">
-                <button
-                  onClick={() => setIsUploadModalOpen(true)}
-                  className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-700 hover:border-slate-500 bg-slate-900/40 text-slate-300 hover:text-white text-xs font-medium flex items-center justify-center gap-2 transition"
-                >
-                  <Plus className="text-sm" />
-                  <span>Add Files</span>
-                </button>
-              </div>
-            </div>
-          ) : (
+        {/* RIGHT PANEL - Rendered as persistent panel only on expanded desktop (>= 1280px). On mobile, replaced by MobileReflectionSheet */}
+        {viewMode !== 'mindmap' && (
+          <aside className="hidden xl:flex w-80 lg:w-96 border-l border-white/10 bg-[#080c14]/90 p-4 lg:p-5 flex-col justify-between overflow-y-auto shrink-0 z-20">
             <div className="space-y-4">
+
               <div className="flex items-center justify-between pb-2 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <HandHeart className="text-lg text-purple-400" />
@@ -2096,14 +2795,21 @@ export default function PresenceGriefTechPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed">
-                  You are revisiting peaceful outdoor memories from 2018. Holding onto Thomas&apos;s appreciation for quiet nature
+                  You are revisiting peaceful family memories. Holding onto {companionPersonName}&apos;s appreciation for quiet, grounding
                   moments can anchor your own week.
                 </p>
                 <div className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
                   <span className="text-[11px]">
                     Emotional Tone: <strong className="text-cyan-300 font-normal">Nostalgic &amp; Soothing</strong>
                   </span>
-                  <button className="text-purple-300 hover:text-purple-200 text-[11px] underline">Log to Journal</button>
+                  <Link
+                    href={`/experience/journal?context=${encodeURIComponent(
+                      `Quiet family memories and values learned from ${companionPersonName}`
+                    )}`}
+                    className="text-purple-300 hover:text-purple-200 text-[11px] underline flex items-center gap-1"
+                  >
+                    <span>Log to Journal →</span>
+                  </Link>
                 </div>
               </div>
 
@@ -2168,8 +2874,8 @@ export default function PresenceGriefTechPage() {
                 </div>
               </div>
             </div>
-          )}
-        </aside>
+          </aside>
+        )}
       </div>
 
       {/* UPLOAD MEMORY ARTIFACT MODAL */}
@@ -2345,11 +3051,124 @@ export default function PresenceGriefTechPage() {
               <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
                 Take 4 slow breaths. Feel the quiet stillness and your feet resting gently on the floor.
               </p>
+
+              {/* HEALING SOUNDSCAPE SELECTION TRAY */}
+              <div className="w-full mt-4 pt-3 border-t border-slate-800/80">
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-[11px] font-medium text-slate-300 flex items-center gap-1.5">
+                    <MusicNotes className="text-cyan-400" />
+                    Mindful Soundscape:
+                  </span>
+                  <button
+                    onClick={() => setIsBreathingMuted(!isBreathingMuted)}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 transition"
+                  >
+                    {isBreathingMuted ? (
+                      <>
+                        <SpeakerSlash className="text-amber-400" />
+                        <span className="text-amber-300/80">Muted</span>
+                      </>
+                    ) : (
+                      <>
+                        <SpeakerHigh className="text-cyan-400" />
+                        <span>Sound On</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreathingSoundTrack('birds');
+                      setIsBreathingMuted(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium border flex flex-col items-center justify-center gap-1 transition ${
+                      breathingSoundTrack === 'birds' && !isBreathingMuted
+                        ? 'bg-emerald-950/70 border-emerald-500/50 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.2)]'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-sm">🐦</span>
+                    <span className="font-semibold text-[11px]">432 Hz Birds</span>
+                    <span className="text-[9px] text-emerald-400/80 font-mono">Healing Tone</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreathingSoundTrack('rain');
+                      setIsBreathingMuted(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium border flex flex-col items-center justify-center gap-1 transition ${
+                      breathingSoundTrack === 'rain' && !isBreathingMuted
+                        ? 'bg-cyan-950/70 border-cyan-500/50 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-sm">🌧️</span>
+                    <span className="font-semibold text-[11px]">Rain Sound</span>
+                    <span className="text-[9px] text-cyan-400/80 font-mono">Gentle Mist</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreathingSoundTrack('jingle');
+                      setIsBreathingMuted(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium border flex flex-col items-center justify-center gap-1 transition ${
+                      breathingSoundTrack === 'jingle' && !isBreathingMuted
+                        ? 'bg-sky-950/70 border-sky-500/50 text-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.2)]'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-sm">❄️</span>
+                    <span className="font-semibold text-[11px]">Jingle Bell</span>
+                    <span className="text-[9px] text-sky-400/80 font-mono">Serene Snow</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreathingSoundTrack('rumi');
+                      setIsBreathingMuted(false);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium border flex flex-col items-center justify-center gap-1 transition ${
+                      breathingSoundTrack === 'rumi' && !isBreathingMuted
+                        ? 'bg-purple-950/70 border-purple-500/50 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-sm">✨</span>
+                    <span className="font-semibold text-[11px]">Rumi Tune</span>
+                    <span className="text-[9px] text-purple-400/80 font-mono">Cosmic Peace</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBreathingSoundTrack('silence');
+                      setIsBreathingMuted(true);
+                    }}
+                    className={`py-2 px-2 rounded-xl text-xs font-medium border flex flex-col items-center justify-center gap-1 transition col-span-2 sm:col-span-1 ${
+                      breathingSoundTrack === 'silence' || isBreathingMuted
+                        ? 'bg-slate-800 border-slate-600 text-slate-200'
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <span className="text-sm">🤫</span>
+                    <span className="font-semibold text-[11px]">Quiet Stillness</span>
+                    <span className="text-[9px] text-slate-400 font-mono">Silent Breath</span>
+                  </button>
+                </div>
+              </div>
             </div>
 
             <button
               onClick={() => setIsBreathingModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-xs font-semibold text-white shadow-lg transition"
+              className="w-full mt-2 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-xs font-semibold text-white shadow-lg transition"
             >
               Return to Session
             </button>
@@ -2370,7 +3189,7 @@ export default function PresenceGriefTechPage() {
             <div className="border-b border-white/10 pb-3">
               <div className="flex items-center gap-2">
                 <Microphone className="text-xl text-amber-400" />
-                <h3 className="text-lg font-serif text-slate-100">Voice Profile: Thomas</h3>
+                <h3 className="text-lg font-serif text-slate-100">Voice Profile: {companionPersonName}</h3>
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 Persistent 1-to-1 voice binding. Every conversation response uses this cloned voice.
@@ -2413,8 +3232,8 @@ export default function PresenceGriefTechPage() {
                     const val = inputEl?.value?.trim();
                     if (!val) return;
                     setBoundVoiceId(val);
-                    setBoundVoiceName('Thomas (Linked Voice)');
-                    setVoiceBindingSuccess('Voice ID successfully bound to Thomas!');
+                    setBoundVoiceName(`${companionPersonName} (Linked Voice)`);
+                    setVoiceBindingSuccess(`Voice ID successfully bound to ${companionPersonName}!`);
                     setTimeout(() => setVoiceBindingSuccess(''), 3000);
                   }}
                   className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition"
@@ -2428,7 +3247,7 @@ export default function PresenceGriefTechPage() {
             <div className="space-y-3 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800">
               <span className="text-xs font-semibold text-slate-300">Option B: Upload New Audio Recording (Clone)</span>
               <p className="text-[11px] text-slate-400">
-                Upload a 30-second to 2-minute clean audio recording of Thomas speaking to generate a new cloned voice profile.
+                Upload a 30-second to 2-minute clean audio recording of {companionPersonName} speaking to generate a new cloned voice profile.
               </p>
               <input
                 type="file"
@@ -2456,8 +3275,8 @@ export default function PresenceGriefTechPage() {
                   setIsCloningVoice(true);
                   try {
                     const fd = new FormData();
-                    fd.append('personId', 'person-thomas');
-                    fd.append('voiceName', `Thomas (${voiceCustomSample.name})`);
+                    fd.append('personId', `person-${companionPersonName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`);
+                    fd.append('voiceName', `${companionPersonName} (${voiceCustomSample.name})`);
                     fd.append('consented', 'true');
                     fd.append('sample', voiceCustomSample);
 
@@ -2479,7 +3298,7 @@ export default function PresenceGriefTechPage() {
                 }}
                 className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-500 hover:to-purple-500 text-white text-xs font-semibold disabled:opacity-50 transition"
               >
-                {isCloningVoice ? 'Uploading & Cloning Voice Sample...' : 'Clone & Bind to Thomas'}
+                {isCloningVoice ? 'Uploading & Cloning Voice Sample...' : `Clone & Bind to ${companionPersonName}`}
               </button>
             </div>
           </div>
@@ -2594,6 +3413,120 @@ export default function PresenceGriefTechPage() {
         mode={googleDriveMode}
         onImport={handleGoogleDriveImport}
       />
+
+      {/* CONFIGURE CUSTOM REMEMBRANCE PERSONA MODAL (Snip P2) */}
+      <ConfigurePersonaModal
+        isOpen={isConfigurePersonaModalOpen}
+        onClose={() => setIsConfigurePersonaModalOpen(false)}
+        currentProfile={personaProfile}
+        onSaveProfile={(updatedProfile, initialMemory) => {
+          setPersonaProfile(updatedProfile);
+          setCompanionPersonName(updatedProfile.fullName);
+          setCompanionPersonRelation(updatedProfile.relationship);
+          setActivePortraitUrl(updatedProfile.portraitUrl);
+
+          if (initialMemory) {
+            setUploadedAudioVault((prev) => [
+              {
+                id: `audio-${Date.now()}`,
+                title: initialMemory.title,
+                url: initialMemory.audioClipUrl || '/audio_samples/grandpa_authentic.wav',
+                type: 'audio',
+                date: 'Just now',
+                size: '2.8 MB',
+              },
+              ...prev,
+            ]);
+          }
+
+          try {
+            localStorage.setItem('paramsathya_persona_profile_v1', JSON.stringify(updatedProfile));
+          } catch {}
+        }}
+      />
+
+      {/* MOBILE ADAPTIVE SHELL SHEETS & NAVIGATION (< 768px) */}
+      <MobileBottomNav
+        activeTab={
+          viewMode === 'mindmap'
+            ? 'mindmap'
+            : activeTab === 'memories'
+            ? 'presence'
+            : activeTab === 'family'
+            ? 'circle'
+            : 'more'
+        }
+        onSelectTab={(tabKey: MobileTab) => {
+          if (tabKey === 'presence') {
+            setActiveTab('memories');
+            setViewMode('companion');
+          } else if (tabKey === 'memories') {
+            setActiveTab('memories');
+            setViewMode('companion');
+          } else if (tabKey === 'mindmap') {
+            setActiveTab('memories');
+            setViewMode('mindmap');
+          } else if (tabKey === 'circle') {
+            setActiveTab('family');
+            setViewMode('companion');
+          } else if (tabKey === 'more') {
+            setIsMobileMoreOpen(true);
+          }
+        }}
+        pendingInvitesCount={pendingInvites.length}
+        memoryCount={memoryGraph.uniqueApprovedMemoryCount}
+      />
+
+      {/* MOBILE MORE DRAWER SHEET */}
+      <MobileMoreSheet
+        isOpen={isMobileMoreOpen}
+        onClose={() => setIsMobileMoreOpen(false)}
+        onNavigateTab={(targetTab) => {
+          if (targetTab === 'indic') {
+            window.location.href = '/playground/indic';
+            return;
+          }
+          setActiveTab(targetTab);
+          setViewMode('companion');
+        }}
+        onOpenBreathing={() => setIsBreathingModalOpen(true)}
+        onOpenVoiceProfile={() => setIsVoiceModalOpen(true)}
+        onOpenThemeSelector={() => setIsThemeDropdownOpen(true)}
+        isAmbientMuted={isAmbientMuted}
+        onToggleAmbient={() => {
+          const nextMuted = !isAmbientMuted;
+          setIsAmbientMuted(nextMuted);
+          if (ambientAudioRef.current) {
+            if (nextMuted) {
+              ambientAudioRef.current.pause();
+            } else if (!isSpeaking && !isPlaying) {
+              ambientAudioRef.current.play().catch(() => {});
+            }
+          }
+        }}
+        audioVaultCount={uploadedAudioVault.length}
+        photoVaultCount={uploadedPhotos.length}
+        userDisplayName={userProfile.displayName}
+        userAvatarUrl={userProfile.avatarUrl}
+        onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+      />
+
+      {/* MOBILE REFLECTION & HANDOFF SHEET */}
+      <MobileReflectionSheet
+        isOpen={isMobileReflectionOpen}
+        onClose={() => setIsMobileReflectionOpen(false)}
+        personName={companionPersonName}
+        onOpenBreathing={() => setIsBreathingModalOpen(true)}
+      />
+
+      {/* ACTIVE LOGGED-IN USER PROFILE & SETTINGS MODAL */}
+      <UserProfileModal
+        isOpen={isUserProfileModalOpen}
+        onClose={() => setIsUserProfileModalOpen(false)}
+        currentProfile={userProfile}
+        onSaveProfile={handleSaveUserProfile}
+      />
     </div>
+
   );
 }

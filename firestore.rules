@@ -224,23 +224,47 @@ service cloud.firestore {
 
     function isValidInvitation(data, profileId) {
       let allowed = [
-        'id', 'profileId', 'invitedEmail', 'recipientUid',
-        'invitedBy', 'role', 'status', 'createdAt', 'expiresAt'
+        'id', 'profileId', 'inviterUid', 'invitedEmailNormalized', 'role',
+        'status', 'tokenHash', 'expiresAt', 'createdAt', 'updatedAt',
+        'sentAt', 'acceptedAt', 'revokedAt', 'gmailMessageId',
+        'sendAttemptCount', 'lastSendErrorCode',
+        // Legacy compatibility
+        'invitedEmail', 'recipientUid', 'invitedBy'
       ];
-      let required = ['profileId', 'invitedBy', 'role', 'status'];
-      let validRoles = ['member', 'contributor', 'viewer'];
-      let validStatuses = ['pending', 'accepted', 'declined', 'revoked'];
+      let required = ['profileId', 'role', 'status'];
+      let validRoles = ['CONTRIBUTOR', 'VIEWER', 'contributor', 'viewer', 'member'];
+      let validStatuses = [
+        'CREATED', 'SENDING', 'SENT', 'ACCEPTED', 'EXPIRED', 'REVOKED', 'SEND_FAILED',
+        'pending', 'accepted', 'declined', 'revoked'
+      ];
 
       return data.keys().hasOnly(allowed) &&
         data.keys().hasAll(required) &&
         data.profileId == profileId &&
-        data.invitedBy == request.auth.uid &&
         data.role in validRoles &&
         data.status in validStatuses &&
-        (!('invitedEmail' in data) || isValidEmail(data.invitedEmail)) &&
-        isValidOptionalString(data, 'recipientUid', 1, 128) &&
+        isValidOptionalString(data, 'tokenHash', 32, 128) &&
         isValidOptionalString(data, 'id', 1, 128);
     }
+
+    function isValidMembership(data, profileId, membershipId) {
+      let allowed = [
+        'id', 'profileId', 'uid', 'emailNormalized', 'displayName',
+        'role', 'status', 'joinedAt', 'invitedByUid', 'invitationId'
+      ];
+      let required = ['id', 'profileId', 'uid', 'emailNormalized', 'role', 'status'];
+      let validRoles = ['OWNER', 'CONTRIBUTOR', 'VIEWER'];
+      let validStatuses = ['ACTIVE', 'REVOKED'];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(required) &&
+        data.id == membershipId &&
+        data.profileId == profileId &&
+        data.role in validRoles &&
+        data.status in validStatuses &&
+        isValidEmail(data.emailNormalized);
+    }
+
 
     // ===============================================================
     // Path Rules
@@ -355,7 +379,26 @@ service cloud.firestore {
 
         allow delete: if isProfileOwner(profileId);
       }
+
+      // Subcollection: Circle Memberships
+      match /memberships/{membershipId} {
+        allow read: if isAuthenticated() && (
+          isProfileOwner(profileId) ||
+          (resource.data.uid == request.auth.uid)
+        );
+
+        allow create: if isProfileOwner(profileId) &&
+          isValidMembership(request.resource.data, profileId, membershipId);
+
+        allow update: if isProfileOwner(profileId) &&
+          isValidMembership(request.resource.data, profileId, membershipId) &&
+          request.resource.data.profileId == resource.data.profileId &&
+          request.resource.data.uid == resource.data.uid;
+
+        allow delete: if isProfileOwner(profileId);
+      }
     }
+
 
     // Default Deny for all other unmatched collections and paths
     match /{document=**} {

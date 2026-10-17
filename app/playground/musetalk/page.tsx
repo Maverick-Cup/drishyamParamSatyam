@@ -168,6 +168,14 @@ export default function MuseTalkPlaygroundPage() {
                 1.5 Synthetic Localhost
               </span>
               <Link
+                href="/playground/sync"
+                className="ml-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-600/50 text-emerald-300 text-xs font-sans font-medium transition shadow-sm"
+                title="Switch to Sync Lip-Sync 2 Pro Studio (Reusable Base Video Asset)"
+              >
+                <FilmStrip className="text-sm text-emerald-400" />
+                <span>Sync Lip-Sync 2 Pro</span>
+              </Link>
+              <Link
                 href="/playground/indic"
                 className="ml-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/50 text-amber-300 text-xs font-sans font-medium transition shadow-sm"
                 title="Toggle to Indic Language Support & Neural TTS"

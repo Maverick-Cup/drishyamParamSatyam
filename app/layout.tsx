@@ -1,6 +1,14 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import SurrealBackdrop from '@/components/SurrealBackdrop';
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
+  themeColor: '#0b0f17',
+};
 
 export const metadata: Metadata = {
   title: 'ParamSathya — Private Remembrance & Guided Reflection',
@@ -11,6 +19,7 @@ export const metadata: Metadata = {
     apple: '/favicon.svg',
   },
 };
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

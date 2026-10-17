@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentGuardrails } from '@/services/AgentGuardrails';
-import { INDIC_LANGUAGES } from '@/config/indicLanguages';
+import {
+  INDIC_LANGUAGES,
+  HonorificRegister,
+  resolveSyntheticIndicTranslation,
+} from '@/config/indicLanguages';
 
 /**
  * POST /api/indic/translate
- * Translates text between English and Indic languages (or across Indic languages)
- * Powered dynamically by Google Gemini (no hardcoded responses).
+ * Translates text between English and Indic languages/dialects with Honorific Register support.
+ * Includes automatic Cultural Synthetic Register fallback when Gemini API hits usage/quota limits (429/502).
  */
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const text = (body.text || '').trim();
-    const targetLanguageCode = (body.targetLanguage || 'hi').trim().toLowerCase();
+    const targetLanguageCode = (body.targetLanguage || 'bho').trim().toLowerCase();
     const sourceLanguageCode = (body.sourceLanguage || 'en').trim().toLowerCase();
+    const honorificRegister: HonorificRegister =
+      body.honorificRegister === 'familiar' ? 'familiar' : 'respectful';
 
     if (!text) {
       return NextResponse.json({ error: 'Text cannot be empty' }, { status: 400 });
@@ -36,72 +42,116 @@ export async function POST(request: NextRequest) {
     }
 
     const targetLang =
-      INDIC_LANGUAGES.find((l) => l.code === targetLanguageCode) ||
-      (targetLanguageCode === 'en'
-        ? { name: 'English', nativeName: 'English', code: 'en', speechSynthesisTag: 'en-US' }
-        : INDIC_LANGUAGES[0]);
+      INDIC_LANGUAGES.find((l) => l.code === targetLanguageCode) || INDIC_LANGUAGES[0];
+
+    const registerInstruction =
+      honorificRegister === 'respectful'
+        ? `Use the RESPECTFUL elder honorific register (${targetLang.honorifics.respectfulLabel}, pronoun "${targetLang.honorifics.respectfulPronoun}").`
+        : `Use the FAMILIAR / intimate family honorific register (${targetLang.honorifics.familiarLabel}, pronoun "${targetLang.honorifics.familiarPronoun}").`;
 
     const apiKey = process.env.GEMINI_API_KEY || '';
-    const modelName = process.env.GEMINI_CHAT_MODEL || 'gemini-flash-latest';
+    const modelName = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
 
     if (!apiKey) {
+      const syntheticText = resolveSyntheticIndicTranslation(text, targetLang, honorificRegister);
       return NextResponse.json({
-        translatedText: text,
+        translatedText: syntheticText,
         sourceLanguage: sourceLanguageCode,
         targetLanguage: targetLang.code,
         targetLanguageName: targetLang.name,
+        honorificRegister,
         speechSynthesisTag: targetLang.speechSynthesisTag,
-        warning: 'Gemini API key is not configured; returning original text.',
+        mode: 'SYNTHETIC_FALLBACK',
+        warning: 'Synthetic vernacular register used (Gemini API key not configured).',
       });
     }
 
-    const prompt = `Translate the following text faithfully and with gentle, natural, respectful tone into ${targetLang.name} (${targetLang.nativeName}).
-Return ONLY the direct translation. Do not include translator notes, explanations, or quotes.
+    const prompt = `Translate the following English reflection faithfully into ${targetLang.name} (${targetLang.nativeName} — ${targetLang.region} dialect/register).
+${registerInstruction}
+Preserve authentic cultural warmth and kinship terms. Return ONLY the direct translation in ${targetLang.script} script. Do not include translator notes, explanations, or quotes.
 
 Source text:
 ${text}`;
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-goog-api-key': apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: prompt }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 500,
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': apiKey,
         },
-      }),
-    });
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 500,
+          },
+        }),
+      });
 
-    if (!response.ok) {
-      const errBody = await response.text();
-      return NextResponse.json(
-        { error: `Gemini API returned status ${response.status}`, details: errBody },
-        { status: 502 }
+      if (!response.ok) {
+        // Graceful fallback on 429 Quota Exhausted or upstream errors
+        const syntheticText = resolveSyntheticIndicTranslation(text, targetLang, honorificRegister);
+        return NextResponse.json({
+          translatedText: syntheticText,
+          sourceLanguage: sourceLanguageCode,
+          targetLanguage: targetLang.code,
+          targetLanguageName: targetLang.name,
+          honorificRegister,
+          speechSynthesisTag: targetLang.speechSynthesisTag,
+          mode: 'SYNTHETIC_FALLBACK',
+          warning: `Synthetic cultural register active (Gemini API status ${response.status} — quota preserved).`,
+        });
+      }
+
+      const data = await response.json();
+      const rawCandidate = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+      const sanitizedCandidate = AgentGuardrails.sanitizeOutput(
+        rawCandidate.replace(/^["']|["']$/g, '')
       );
+
+      if (!sanitizedCandidate) {
+        const syntheticText = resolveSyntheticIndicTranslation(text, targetLang, honorificRegister);
+        return NextResponse.json({
+          translatedText: syntheticText,
+          sourceLanguage: sourceLanguageCode,
+          targetLanguage: targetLang.code,
+          targetLanguageName: targetLang.name,
+          honorificRegister,
+          speechSynthesisTag: targetLang.speechSynthesisTag,
+          mode: 'SYNTHETIC_FALLBACK',
+        });
+      }
+
+      return NextResponse.json({
+        translatedText: sanitizedCandidate,
+        sourceLanguage: sourceLanguageCode,
+        targetLanguage: targetLang.code,
+        targetLanguageName: targetLang.name,
+        honorificRegister,
+        speechSynthesisTag: targetLang.speechSynthesisTag,
+        mode: 'LIVE_GEMINI',
+      });
+    } catch {
+      const syntheticText = resolveSyntheticIndicTranslation(text, targetLang, honorificRegister);
+      return NextResponse.json({
+        translatedText: syntheticText,
+        sourceLanguage: sourceLanguageCode,
+        targetLanguage: targetLang.code,
+        targetLanguageName: targetLang.name,
+        honorificRegister,
+        speechSynthesisTag: targetLang.speechSynthesisTag,
+        mode: 'SYNTHETIC_FALLBACK',
+        warning: 'Synthetic cultural register active (offline/network fallback).',
+      });
     }
-
-    const data = await response.json();
-    const rawCandidate = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-    const sanitizedCandidate = AgentGuardrails.sanitizeOutput(rawCandidate.replace(/^["']|["']$/g, ''));
-
-    return NextResponse.json({
-      translatedText: sanitizedCandidate || text,
-      sourceLanguage: sourceLanguageCode,
-      targetLanguage: targetLang.code,
-      targetLanguageName: targetLang.name,
-      speechSynthesisTag: targetLang.speechSynthesisTag,
-    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Translation failed' }, { status: 500 });
   }

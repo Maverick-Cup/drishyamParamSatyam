@@ -10,7 +10,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const text = (body.text || '').trim();
-    const voiceId = body.voiceId || process.env.DEFAULT_SYNC_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL'; // Rachel or custom clone
+    const requestedVoiceId = (body.voiceId || '').trim();
+    const envVoiceId = (process.env.SYNC_VOICE_ID || process.env.DEFAULT_SYNC_VOICE_ID || '').trim();
+    const voiceId =
+      requestedVoiceId && requestedVoiceId !== 'sync-rajesh-authentic-v2'
+        ? requestedVoiceId
+        : envVoiceId || 'EXAVITQu4vr4xnSDxMaL';
 
     if (!text) {
       return NextResponse.json({ error: 'Text cannot be empty' }, { status: 400 });
@@ -28,18 +33,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Alphanumeric format check on voiceId
-    if (!/^[a-zA-Z0-9_\-]{8,64}$/.test(voiceId)) {
+    if (!/^[a-zA-Z0-9_\-]{6,64}$/.test(voiceId)) {
       return NextResponse.json(
         { error: 'Invalid voiceId format. Must be alphanumeric.', threatType: 'PARAMETER_TAMPERING' },
         { status: 400 }
       );
     }
 
-    if (!syncLabsService.isConfigured()) {
+    const ttsEnabled = process.env.SYNC_TTS_ENABLED === 'true';
+    if (!syncLabsService.isConfigured() || !ttsEnabled) {
       return NextResponse.json({
         success: false,
         fallback: 'BROWSER_SPEECH',
-        message: 'Sync.so API key not configured. Using browser speech synthesis fallback.',
+        message: 'Live cloud TTS is disabled or unconfigured; using attached companion voice fallback.',
       });
     }
 

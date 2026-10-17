@@ -1,6 +1,10 @@
-import { getApps, getApp, initializeApp, cert, applicationDefault, App } from 'firebase-admin/app';
-import { getFirestore, Firestore } from 'firebase-admin/firestore';
-import { getStorage, Storage } from 'firebase-admin/storage';
+import { getApps, getApp, initializeApp, cert, applicationDefault } from 'firebase-admin/app';
+import type { App } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
+import type { Storage } from 'firebase-admin/storage';
+
 
 let isInitialized = false;
 

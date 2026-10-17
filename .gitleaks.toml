@@ -1,0 +1,48 @@
+# PARAMSATHYA-SEC-001 — Gitleaks Configuration
+# Extends default Gitleaks rules with ParamSathya-specific secret detectors.
+
+title = "ParamSathya Secret Protection Configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "paramsathya-gemini-api-key"
+description = "Google Gemini Developer API Key (AIza / AQ)"
+regex = '''\b(AIza[0-9A-Za-z\-_]{35}|AQ\.[0-9A-Za-z\-_]{30,})\b'''
+tags = ["key", "google", "gemini", "critical"]
+
+[[rules]]
+id = "paramsathya-sync-api-key"
+description = "Sync Labs Lip-Sync API Key (sk-...)"
+regex = '''\bsk-[0-9A-Za-z]{16,}\.[0-9A-Za-z]{16,}\b'''
+tags = ["key", "sync", "lipsync", "critical"]
+
+[[rules]]
+id = "paramsathya-gcp-oauth-access-token"
+description = "Google Cloud OAuth2 Access Token (ya29...)"
+regex = '''\bya29\.[0-9A-Za-z\-_]{40,}\b'''
+tags = ["token", "gcp", "oauth", "critical"]
+
+[[rules]]
+id = "paramsathya-public-env-secret"
+description = "Server secret assigned to client-visible NEXT_PUBLIC_ or VITE_ variable"
+regex = '''\b(NEXT_PUBLIC_|VITE_|PUBLIC_)[A-Z0-9_]*(API_KEY|SECRET|TOKEN|PRIVATE_KEY)\s*=\s*[^\s#]+'''
+tags = ["env", "client-exposure", "critical"]
+
+[[rules]]
+id = "paramsathya-service-account-private-key"
+description = "Google Cloud / Firebase Service Account JSON Private Key"
+regex = '''"private_key"\s*:\s*"[-]{5}BEGIN [A-Z ]*PRIVATE KEY[-]{5}'''
+tags = ["key", "gcp", "firebase", "critical"]
+
+[allowlist]
+description = "Narrow allowlist for empty placeholders only"
+paths = [
+  '''\.security-reports/.*''',
+  '''node_modules/.*''',
+  '''\.next/.*'''
+]
+regexes = [
+  '''SYNC_VOICE_ID=EXAVITQu4vr4xnSDxMaL'''
+]

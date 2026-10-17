@@ -55,3 +55,7 @@ local_databases/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# security audit reports (local only)
+.security-reports/
+
