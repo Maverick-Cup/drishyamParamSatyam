@@ -81,6 +81,8 @@ import { MobileReflectionSheet } from '@/components/mobile/MobileReflectionSheet
 import { buildMemoryGraph } from '@/services/memoryGraphBuilder';
 import InteractiveMindMap from '@/components/InteractiveMindMap';
 import { UserProfileModal, ActiveUserProfile } from '@/components/UserProfileModal';
+import { IndicCulturalModal, UnifiedIndicConfig } from '@/components/IndicCulturalModal';
+import { IndicDiscourseEngine } from '@/services/IndicDiscourseEngine';
 
 interface ChatMessage {
   id: string;
@@ -285,6 +287,13 @@ export default function PresenceGriefTechPage() {
   const [isConfigurePersonaModalOpen, setIsConfigurePersonaModalOpen] = useState<boolean>(false);
   const [indicModeEnabled, setIndicModeEnabled] = useState<boolean>(false);
   const [indicSelectedDialect, setIndicSelectedDialect] = useState<string>('bho');
+  const [isIndicModalOpen, setIsIndicModalOpen] = useState<boolean>(false);
+  const [indicConfig, setIndicConfig] = useState<UnifiedIndicConfig>({
+    isEnabled: false,
+    languageCode: 'bho',
+    honorificRegister: 'respectful',
+    conversationalCadence: true,
+  });
   const [activeAudioUrl, setActiveAudioUrl] = useState<string | null>(null);
   const [activeAudioTitle, setActiveAudioTitle] = useState<string>('Attached Companion Voice Reference');
   const [audioDuration, setAudioDuration] = useState<string>('0:08');
@@ -564,6 +573,18 @@ export default function PresenceGriefTechPage() {
       if (savedCompanion) {
         try {
           applyBoundCompanion(JSON.parse(savedCompanion));
+        } catch {}
+      }
+
+      const savedIndicConfig = localStorage.getItem('paramsathya_indic_config');
+      if (savedIndicConfig) {
+        try {
+          const parsed = JSON.parse(savedIndicConfig);
+          if (parsed && parsed.languageCode) {
+            setIndicConfig(parsed);
+            setIndicModeEnabled(Boolean(parsed.isEnabled));
+            setIndicSelectedDialect(parsed.languageCode);
+          }
         } catch {}
       }
 
@@ -918,7 +939,10 @@ export default function PresenceGriefTechPage() {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        // Adapts speech recognition dynamically to active Indic dialect (Kathbath-aligned)
+        recognition.lang = indicModeEnabled
+          ? IndicDiscourseEngine.getSpeechTag(indicSelectedDialect)
+          : 'en-IN';
 
         recognition.onstart = () => {
           setIsRecording(true);
@@ -1156,7 +1180,7 @@ export default function PresenceGriefTechPage() {
   };
 
   // Real Speech Synthesis Fallback ("Talk Back Out Loud") with Muted Avatar Video Sync
-  const speakText = (text: string) => {
+  const speakText = (text: string, customLangTag?: string) => {
     if (typeof window === 'undefined') return;
 
     const startMouthAnimation = () => {
@@ -1188,6 +1212,8 @@ export default function PresenceGriefTechPage() {
 
     const cleanText = text.replace(/^"|"$/g, '');
     const utterance = new SpeechSynthesisUtterance(cleanText);
+    const targetTag = customLangTag || (indicModeEnabled ? IndicDiscourseEngine.getSpeechTag(indicSelectedDialect) : 'en-IN');
+    utterance.lang = targetTag;
 
     const voices = window.speechSynthesis.getVoices();
     // Strictly filter out female voice names to match the male elder persona (Rajesh Bade Papa / Prof. Anand Sharma)
@@ -1271,11 +1297,12 @@ export default function PresenceGriefTechPage() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // Unified Attached Voice Playback for Chat Messages & AI Replies (Deterministic Authentic-First Cascade)
+  // Unified Attached Voice Playback for Chat Messages & AI Replies (AI4Bharat IndicTTS + Dynamic Conversation Pipeline)
   const speakCompanionMessage = async (
     rawText: string,
     isAttachedSample: boolean = false,
-    forcePlay: boolean = false
+    forcePlay: boolean = false,
+    isNewChatReply: boolean = false
   ) => {
     if (typeof window === 'undefined') return;
 
@@ -1287,7 +1314,29 @@ export default function PresenceGriefTechPage() {
     const cleanText = rawText.replace(/^"|"$/g, '').trim();
     if (!cleanText) return;
 
-    // TIER 1: Real-time Cloned TTS via /api/voice/speak
+    // TIER 1: If Indic Mode is Active, try AI4Bharat IndicTTS synthesis via /api/indic/tts
+    if (indicModeEnabled) {
+      try {
+        const indicRes = await fetch('/api/indic/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: cleanText,
+            language: indicSelectedDialect,
+            voiceId: boundVoiceId,
+          }),
+        });
+        const indicData = await indicRes.json();
+        if (indicData.success && indicData.audioUrl) {
+          playAuthenticVoiceAudio(indicData.audioUrl);
+          return;
+        }
+      } catch (err) {
+        console.warn('IndicTTS API fallback:', err);
+      }
+    }
+
+    // TIER 2: Real-time Cloned TTS via /api/voice/speak
     try {
       const speakRes = await fetch('/api/voice/speak', {
         method: 'POST',
@@ -1308,19 +1357,20 @@ export default function PresenceGriefTechPage() {
       console.warn('Attached voice API fallback:', err);
     }
 
-    // TIER 2: If attached sample or living video is available, play authentic video voice track with lip-sync
-    if ((isAttachedSample || !activeAudioUrl) && museTalkVideoUrl && avatarVideoRef.current) {
-      playNativeAttachedVideoVoiceOnce();
-      return;
+    // TIER 3: For Initial Seed Memory Opener ONLY (not newly typed chat replies)
+    // If the message is the static initial memory sample, play the authentic attached living video or vault audio
+    if (!isNewChatReply) {
+      if (isAttachedSample && museTalkVideoUrl && avatarVideoRef.current) {
+        playNativeAttachedVideoVoiceOnce();
+        return;
+      }
+      if (activeAudioUrl && isAttachedSample) {
+        playAuthenticVoiceAudio(activeAudioUrl);
+        return;
+      }
     }
 
-    // TIER 3: If an authentic audio snippet is loaded in the vault, play that authentic recording
-    if (activeAudioUrl) {
-      playAuthenticVoiceAudio(activeAudioUrl);
-      return;
-    }
-
-    // TIER 4: Persona-Matched Web Speech API Fallback (Strict Male Pitch & Indian/Hindi Inflection)
+    // TIER 4: Dynamic Conversational Web Speech API (Speaks the EXACT new words replied in elder voice)
     speakText(cleanText);
   };
 
@@ -1643,17 +1693,27 @@ export default function PresenceGriefTechPage() {
       let finalSpokenText = replyText;
       let displayMessageText = `"${replyText}"`;
 
-      // If Indic vernacular mode is toggled, translate using the OOP socio-linguistic engine
+      // If Indic vernacular mode is toggled, translate and enrich using IndicDiscourseEngine
       if (indicModeEnabled) {
         try {
           const indicTranslation = await indicEngine.translate(
             replyText,
             indicSelectedDialect,
-            'respectful',
+            indicConfig.honorificRegister || 'respectful',
             companionPersonName
           );
-          finalSpokenText = indicTranslation.nativeScript;
-          displayMessageText = `"${indicTranslation.nativeScript}"\n(${indicTranslation.transliteration})`;
+          
+          let scriptedText = indicTranslation.nativeScript;
+          if (indicConfig.conversationalCadence) {
+            scriptedText = IndicDiscourseEngine.applyConversationalParticles(
+              scriptedText,
+              indicSelectedDialect,
+              indicConfig.honorificRegister || 'respectful'
+            );
+          }
+
+          finalSpokenText = scriptedText;
+          displayMessageText = `"${scriptedText}"\n(${indicTranslation.transliteration})`;
         } catch {
           // Keep original English text if translation fails
         }
@@ -1673,12 +1733,12 @@ export default function PresenceGriefTechPage() {
       setConversations((prev) => [...prev, companionMsg]);
       setIsAiThinking(false);
 
-      // 2. Synthesize audio in attached companion's voice and animate avatar only while speaking
-      await speakCompanionMessage(finalSpokenText, true, true);
+      // 2. Synthesize audio dynamically for the newly generated reply (isNewChatReply: true)
+      await speakCompanionMessage(finalSpokenText, true, true, true);
     } catch (err: any) {
       console.warn('Chat interaction error:', err);
       setIsAiThinking(false);
-      await speakCompanionMessage('I am right here listening to you. Take a gentle breath with me.', true, true);
+      await speakCompanionMessage('I am right here listening to you. Take a gentle breath with me.', true, true, true);
     }
   };
 
@@ -1760,14 +1820,19 @@ export default function PresenceGriefTechPage() {
               <VideoCamera className="text-sm text-emerald-400" />
               <span>Sync 2 Pro</span>
             </Link>
-            <Link
-              href="/playground/indic"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-amber-300 hover:text-amber-200 bg-amber-950/40 border border-amber-600/40 hover:bg-amber-900/40 shadow-sm"
-              title="Toggle to Indic Language Support & Neural TTS"
+            <button
+              type="button"
+              onClick={() => setIsIndicModalOpen(true)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium shadow-sm ${
+                indicModeEnabled
+                  ? 'text-amber-300 bg-amber-950/80 border border-amber-500/70 hover:bg-amber-900/80'
+                  : 'text-amber-300/80 hover:text-amber-200 bg-amber-950/30 border border-amber-600/30 hover:bg-amber-900/40'
+              }`}
+              title="Open Indic Cultural Dialect Studio (AI4Bharat IndicVoices)"
             >
               <Translate className="text-sm text-amber-400" />
-              <span>Indic Language</span>
-            </Link>
+              <span>{indicModeEnabled ? `Indic (${indicSelectedDialect.toUpperCase()})` : 'Indic Language'}</span>
+            </button>
             <Link
               href="/developer/guardrails"
               className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
@@ -2781,7 +2846,15 @@ export default function PresenceGriefTechPage() {
                         <div className="pt-2 flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <button
-                              onClick={() => speakCompanionMessage(msg.text, Boolean(msg.isAttachedVoiceSample))}
+                              onClick={() => {
+                                const isInitialOpener = msg.id.startsWith('seed-companion');
+                                speakCompanionMessage(
+                                  msg.text,
+                                  Boolean(msg.isAttachedVoiceSample),
+                                  false,
+                                  !isInitialOpener
+                                );
+                              }}
                               className="w-7 h-7 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 flex items-center justify-center text-xs transition"
                               title={`Listen in ${companionPersonName}'s attached voice with synchronized face lip-sync`}
                             >
@@ -2874,7 +2947,17 @@ export default function PresenceGriefTechPage() {
                   <div className="hidden sm:flex items-center gap-1.5 bg-slate-900/90 rounded-lg px-2.5 py-1 text-[11px] text-slate-300 border border-slate-700 shrink-0">
                     <button
                       type="button"
-                      onClick={() => setIndicModeEnabled(!indicModeEnabled)}
+                      onClick={() => {
+                        const nextState = !indicModeEnabled;
+                        setIndicModeEnabled(nextState);
+                        setIndicConfig((prev) => {
+                          const updated = { ...prev, isEnabled: nextState };
+                          try {
+                            localStorage.setItem('paramsathya_indic_config', JSON.stringify(updated));
+                          } catch {}
+                          return updated;
+                        });
+                      }}
                       className={`flex items-center gap-1 px-2 py-0.5 rounded font-medium transition ${
                         indicModeEnabled
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50'
@@ -2886,18 +2969,38 @@ export default function PresenceGriefTechPage() {
                       <span>{indicModeEnabled ? 'Indic (Active)' : 'Indic'}</span>
                     </button>
                     {indicModeEnabled && (
-                      <select
-                        value={indicSelectedDialect}
-                        onChange={(e) => setIndicSelectedDialect(e.target.value)}
-                        className="bg-transparent text-amber-300 text-[10px] font-mono focus:outline-none cursor-pointer"
-                      >
-                        <option value="bho" className="bg-slate-900 text-slate-200">Bhojpuri (भोजपुरी)</option>
-                        <option value="hi" className="bg-slate-900 text-slate-200">Hindi (हिन्दी)</option>
-                        <option value="mai" className="bg-slate-900 text-slate-200">Maithili (मैथिली)</option>
-                        <option value="awa" className="bg-slate-900 text-slate-200">Awadhi (अवधी)</option>
-                        <option value="bn" className="bg-slate-900 text-slate-200">Bengali (বাংলা)</option>
-                        <option value="ta" className="bg-slate-900 text-slate-200">Tamil (தமிழ்)</option>
-                      </select>
+                      <>
+                        <select
+                          value={indicSelectedDialect}
+                          onChange={(e) => {
+                            const newDialect = e.target.value;
+                            setIndicSelectedDialect(newDialect);
+                            setIndicConfig((prev) => {
+                              const updated = { ...prev, languageCode: newDialect };
+                              try {
+                                localStorage.setItem('paramsathya_indic_config', JSON.stringify(updated));
+                              } catch {}
+                              return updated;
+                            });
+                          }}
+                          className="bg-transparent text-amber-300 text-[10px] font-mono focus:outline-none cursor-pointer"
+                        >
+                          <option value="bho" className="bg-slate-900 text-slate-200">Bhojpuri (भोजपुरी)</option>
+                          <option value="hi" className="bg-slate-900 text-slate-200">Hindi (हिन्दी)</option>
+                          <option value="mai" className="bg-slate-900 text-slate-200">Maithili (मैथिली)</option>
+                          <option value="awa" className="bg-slate-900 text-slate-200">Awadhi (अवधी)</option>
+                          <option value="bn" className="bg-slate-900 text-slate-200">Bengali (বাংলা)</option>
+                          <option value="ta" className="bg-slate-900 text-slate-200">Tamil (தமிழ்)</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setIsIndicModalOpen(true)}
+                          className="text-slate-400 hover:text-amber-300 transition px-1"
+                          title="Open Indic Cultural Dialect Studio Settings"
+                        >
+                          <SlidersHorizontal className="text-xs" />
+                        </button>
+                      </>
                     )}
                   </div>
 
@@ -3671,6 +3774,25 @@ export default function PresenceGriefTechPage() {
         onClose={() => setIsUserProfileModalOpen(false)}
         currentProfile={userProfile}
         onSaveProfile={handleSaveUserProfile}
+      />
+
+      {/* UNIFIED INDIC CULTURAL & DIALECT STUDIO MODAL (AI4BHARAT INDICVOICES) */}
+      <IndicCulturalModal
+        isOpen={isIndicModalOpen}
+        onClose={() => setIsIndicModalOpen(false)}
+        config={indicConfig}
+        onChangeConfig={(newCfg) => {
+          setIndicConfig(newCfg);
+          setIndicModeEnabled(Boolean(newCfg.isEnabled));
+          setIndicSelectedDialect(newCfg.languageCode);
+          try {
+            localStorage.setItem('paramsathya_indic_config', JSON.stringify(newCfg));
+          } catch {}
+        }}
+        companionName={companionPersonName}
+        onPreviewVoiceSample={(textToPreview, lang) => {
+          speakCompanionMessage(textToPreview, false, true, true);
+        }}
       />
     </div>
 
