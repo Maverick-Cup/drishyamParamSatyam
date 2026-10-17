@@ -83,6 +83,7 @@ import InteractiveMindMap from '@/components/InteractiveMindMap';
 import { UserProfileModal, ActiveUserProfile } from '@/components/UserProfileModal';
 import { IndicCulturalModal, UnifiedIndicConfig } from '@/components/IndicCulturalModal';
 import { IndicDiscourseEngine } from '@/services/IndicDiscourseEngine';
+import MindfulExpectationModal from '@/components/MindfulExpectationModal';
 
 interface ChatMessage {
   id: string;
@@ -318,6 +319,7 @@ export default function PresenceGriefTechPage() {
 
   // Multi-Region Crisis Safety Modal State
   const [isCrisisModalOpen, setIsCrisisModalOpen] = useState<boolean>(false);
+  const [isMindfulStoryModalOpen, setIsMindfulStoryModalOpen] = useState<boolean>(false);
   const [selectedCrisisRegion, setSelectedCrisisRegion] = useState<string>('IN');
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
 
@@ -2040,6 +2042,15 @@ export default function PresenceGriefTechPage() {
             <ShieldCheck className="text-amber-400 text-sm" />
             <span className="font-medium tracking-tight">Private &amp; Grounded</span>
           </div>
+
+          <button
+            onClick={() => setIsMindfulStoryModalOpen(true)}
+            className="px-2.5 py-1 rounded-full bg-gradient-to-r from-rose-950/70 via-purple-950/50 to-slate-900 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-1.5 hover:from-rose-900/80 hover:to-slate-800 transition shadow-sm cursor-pointer active:scale-95"
+            title="Read our healing intention story: The Oxherd Boy and the Rabbit"
+          >
+            <FlowerLotus className="text-amber-300 text-sm" />
+            <span className="hidden xl:inline">Healing Goal</span>
+          </button>
           <button
             onClick={() => setIsCrisisModalOpen(true)}
             className="px-2.5 py-1 rounded-full bg-rose-950/80 hover:bg-rose-900/80 text-xs text-rose-300 border border-rose-700/60 flex items-center gap-1.5 transition shadow-sm"
@@ -3822,6 +3833,7 @@ export default function PresenceGriefTechPage() {
         userDisplayName={userProfile.displayName}
         userAvatarUrl={userProfile.avatarUrl}
         onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
+        onOpenHealingStory={() => setIsMindfulStoryModalOpen(true)}
       />
 
       {/* MOBILE REFLECTION & HANDOFF SHEET */}
@@ -3857,6 +3869,12 @@ export default function PresenceGriefTechPage() {
         onPreviewVoiceSample={(textToPreview, lang) => {
           speakCompanionMessage(textToPreview, false, true, true);
         }}
+      />
+
+      {/* MINDFUL PURPOSE & SACRED HEALING GOAL MODAL (THE OXHERD BOY & THE RABBIT) */}
+      <MindfulExpectationModal
+        isOpen={isMindfulStoryModalOpen}
+        onClose={() => setIsMindfulStoryModalOpen(false)}
       />
     </div>
 

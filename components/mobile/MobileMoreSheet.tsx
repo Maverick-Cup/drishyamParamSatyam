@@ -15,6 +15,8 @@ import {
   CaretRight,
   UserGear,
   BookOpen,
+  FlowerLotus,
+  Sparkle,
 } from '@phosphor-icons/react';
 
 interface MobileMoreSheetProps {
@@ -25,6 +27,7 @@ interface MobileMoreSheetProps {
   onOpenVoiceProfile: () => void;
   onOpenThemeSelector: () => void;
   onOpenUserProfile?: () => void;
+  onOpenHealingStory?: () => void;
   userDisplayName?: string;
   userAvatarUrl?: string;
   isAmbientMuted: boolean;
@@ -41,6 +44,7 @@ export function MobileMoreSheet({
   onOpenVoiceProfile,
   onOpenThemeSelector,
   onOpenUserProfile,
+  onOpenHealingStory,
   userDisplayName,
   userAvatarUrl,
   isAmbientMuted,
@@ -111,6 +115,32 @@ export function MobileMoreSheet({
               <CaretRight className="text-cyan-400 text-base" />
             </button>
           )}
+
+          {/* Sacred Healing Intention Story (The Oxherd Boy & The Rabbit) */}
+          {onOpenHealingStory && (
+            <button
+              onClick={() => {
+                onOpenHealingStory();
+                onClose();
+              }}
+              className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/50 via-purple-950/40 to-slate-900/80 border border-rose-500/30 hover:border-rose-500/60 transition text-left touch-target-48"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 flex items-center justify-center shrink-0">
+                  <FlowerLotus className="text-xl text-amber-300" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-100 flex items-center gap-1.5">
+                    <span>Our Healing Intention</span>
+                    <Sparkle className="w-3.5 h-3.5 text-amber-400" />
+                  </p>
+                  <p className="text-xs text-slate-400">The Oxherd Boy &amp; The Rabbit story</p>
+                </div>
+              </div>
+              <CaretRight className="text-rose-400 text-base" />
+            </button>
+          )}
+
           {/* Audio Voice Vault */}
           <button
             onClick={() => {
