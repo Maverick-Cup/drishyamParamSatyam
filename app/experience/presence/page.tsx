@@ -48,7 +48,8 @@ import {
   Camera,
   Phone,
   GearSix,
-  Warning
+  Warning,
+  Translate
 } from '@phosphor-icons/react';
 import { CRISIS_DIRECTORIES } from '@/config/crisisHelplines';
 
@@ -1139,6 +1140,14 @@ export default function PresenceGriefTechPage() {
             >
               <SlidersHorizontal className="text-sm text-cyan-400" />
               <span>MuseTalk 1.5</span>
+            </Link>
+            <Link
+              href="/playground/indic"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-amber-300 hover:text-amber-200 bg-amber-950/40 border border-amber-600/40 hover:bg-amber-900/40 shadow-sm"
+              title="Toggle to Indic Language Support & Neural TTS"
+            >
+              <Translate className="text-sm text-amber-400" />
+              <span>Indic Language</span>
             </Link>
             <Link
               href="/developer/guardrails"

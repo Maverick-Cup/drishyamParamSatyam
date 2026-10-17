@@ -13,7 +13,8 @@ import {
   SlidersHorizontal,
   Sparkle,
   FilmStrip,
-  ArrowsClockwise
+  ArrowsClockwise,
+  Translate
 } from '@phosphor-icons/react';
 
 export default function MuseTalkPlaygroundPage() {
@@ -166,6 +167,14 @@ export default function MuseTalkPlaygroundPage() {
               <span className="text-[10px] uppercase font-mono tracking-wider px-2 py-0.5 rounded-full bg-purple-950/70 border border-purple-700/50 text-purple-300">
                 1.5 Synthetic Localhost
               </span>
+              <Link
+                href="/playground/indic"
+                className="ml-2 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-950/70 hover:bg-amber-900/80 border border-amber-600/50 text-amber-300 text-xs font-sans font-medium transition shadow-sm"
+                title="Toggle to Indic Language Support & Neural TTS"
+              >
+                <Translate className="text-sm text-amber-400" />
+                <span>Indic Language Support</span>
+              </Link>
             </h1>
             <p className="text-xs text-slate-400">
               Interactive test bench for MuseTalk 1.5 face alignment, audio chunking, and lip-sync rendering.
