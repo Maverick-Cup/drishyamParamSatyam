@@ -48,14 +48,14 @@ export class FirestoreMemoryRepository implements MemoryRepository {
         });
 
       const snapshot = await vectorQuery.get();
-      return snapshot.docs.map(doc => doc.data() as MemoryRecord);
+      return snapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.data() as MemoryRecord);
     } catch (err) {
       console.warn('[FirestoreMemoryRepository] Native findNearest query failed, falling back to standard query:', err);
       const fallbackSnap = await collRef
         .where('reviewStatus', '==', 'APPROVED')
         .limit(limit)
         .get();
-      return fallbackSnap.docs.map(doc => doc.data() as MemoryRecord);
+      return fallbackSnap.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.data() as MemoryRecord);
     }
   }
 
@@ -125,6 +125,6 @@ export class FirestoreAuditRepository implements AuditRepository {
       .limit(limit)
       .get();
 
-    return snapshot.docs.map(doc => doc.data() as AuditEvent);
+    return snapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.data() as AuditEvent);
   }
 }
