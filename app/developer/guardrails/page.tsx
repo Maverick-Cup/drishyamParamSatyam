@@ -7,7 +7,7 @@ import GuardrailInspector from '@/app/components/GuardrailInspector';
 
 export default function DeveloperGuardrailsPage() {
   return (
-    <div className="min-h-screen bg-[#070b12] text-slate-200 p-6 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#070b12]/85 text-slate-200 p-6 flex flex-col font-sans relative z-10">
       {/* HEADER */}
       <header className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
         <div className="flex items-center gap-3">

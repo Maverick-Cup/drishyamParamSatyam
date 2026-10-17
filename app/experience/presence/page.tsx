@@ -1087,9 +1087,9 @@ export default function PresenceGriefTechPage() {
   };
 
   return (
-    <div className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col bg-[#080c14]">
+    <div className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col bg-transparent">
       {/* MAIN HEADER */}
-      <header className="h-16 border-b border-white/10 px-6 flex items-center justify-between z-30 shrink-0 bg-[#080c14]/90 backdrop-blur-md">
+      <header className="h-16 border-b border-white/10 px-6 flex items-center justify-between z-30 shrink-0 bg-[#080c14]/75 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 text-xs mr-2">
             <ArrowLeft className="text-sm" />
@@ -1320,7 +1320,7 @@ export default function PresenceGriefTechPage() {
         {/* CENTRAL VIEW AREA */}
         {activeTab === 'photos' ? (
           /* PHOTOS & KEEPSAKES VAULT GRID VIEW */
-          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]">
+          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]/40 backdrop-blur-md">
             <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
               <div>
                 <h2 className="text-2xl font-serif text-slate-100">Photos &amp; Keepsakes</h2>
@@ -1354,7 +1354,7 @@ export default function PresenceGriefTechPage() {
           </main>
         ) : activeTab === 'family' ? (
           /* CONNECTED CIRCLE & FAMILY INVITATION MANAGEMENT VIEW */
-          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]">
+          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]/40 backdrop-blur-md">
             <div className="pb-4 border-b border-white/10 mb-6">
               <h2 className="text-2xl font-serif text-slate-100">Connected Circle</h2>
               <p className="text-xs text-slate-400">
@@ -1537,7 +1537,7 @@ export default function PresenceGriefTechPage() {
           </main>
         ) : activeTab === 'audio' ? (
           /* AUDIO VOICE VAULT LIST VIEW */
-          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]">
+          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto p-6 bg-[#080c14]/40 backdrop-blur-md">
             <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-6">
               <div>
                 <h2 className="text-2xl font-serif text-slate-100">Audio Voice Vault</h2>
@@ -1599,7 +1599,7 @@ export default function PresenceGriefTechPage() {
           </main>
         ) : viewMode === 'mindmap' ? (
           /* MIND MAP CONSTELLATION EXPLORER VIEW */
-          <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-[#080c14]">
+          <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-transparent">
             <div className="h-16 px-6 border-b border-white/5 flex items-center justify-between z-10 shrink-0">
               <div>
                 <h2 className="text-2xl font-serif text-slate-100 tracking-wide font-normal">Mind Map</h2>
