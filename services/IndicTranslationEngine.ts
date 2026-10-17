@@ -9,6 +9,7 @@ import {
   INDIC_LANGUAGES,
   IndicLanguageConfig,
   HonorificRegister,
+  resolveContextualIndicTranslation,
   resolveSyntheticIndicTranslation,
 } from '@/config/indicLanguages';
 
@@ -42,30 +43,14 @@ export class IndicSocioLinguisticEngine {
    * to ensure family members who cannot read scripts can pronounce phrases accurately.
    */
   public generateTransliteration(text: string, langCode: string): string {
-    const lower = text.toLowerCase();
-    if (langCode === 'bho') {
-      if (lower.includes('नदी') || lower.includes('भोर')) {
-        return 'Babuji, ka rauwa ke nadi ke teere hamni ke bhor ke tahalal yaad ba?';
-      }
-      if (lower.includes('हिम्मत') || lower.includes('सीख')) {
-        return 'Aaj man tani ghabraail ba, baakir rauwa ke neh bharal seekh yaad karke hamra bahut himmat milela.';
-      }
-      return 'Rauwa ke meeth boli aashirwad hamesha hamni ke kareja me basal ba.';
-    }
-    if (langCode === 'mai') {
-      return 'Baba, ki apne ke nadi kaat bhoruk hamar sabhak tahalnaai smaran achhi?';
-    }
-    if (langCode === 'awa') {
-      return 'Dadaji, ka raure ka nadi ke teere hamre sab ke bhor ka tahal-aiya yaad hay?';
-    }
-    if (langCode === 'bn') {
-      return 'Dadu, nodir dhare amader sokaler hantar kotha ki aponar mone pore?';
-    }
-    return 'Aapki madhur yaadein aur aashirwad sada hamare hriday mein jeevit hain.';
+    const lang = INDIC_LANGUAGES.find((l) => l.code === langCode) || INDIC_LANGUAGES[0];
+    const contextual = resolveContextualIndicTranslation(text, lang, 'respectful');
+    return contextual.transliteration;
   }
 
   /**
    * Translates an English query or companion response into an authentic Indic regional dialect.
+   * If invoked on the browser (client), routes via /api/indic/translate to preserve API keys.
    */
   public async translate(
     text: string,
@@ -76,65 +61,53 @@ export class IndicSocioLinguisticEngine {
     const lang =
       INDIC_LANGUAGES.find((l) => l.code === targetLanguageCode) || INDIC_LANGUAGES[0];
 
-    const apiKey = process.env.GEMINI_API_KEY || '';
-    const modelName = process.env.GEMINI_CHAT_MODEL || 'gemini-2.5-flash';
-
-    if (apiKey) {
+    // BROWSER EXECUTION PATH: Delegate to /api/indic/translate route
+    if (typeof window !== 'undefined') {
       try {
-        const systemInstruction = `You are an expert socio-linguist and native speaker specializing in Indic languages and North Indian regional dialects (${lang.name}, ${lang.region}).
-Directives:
-1. Translate into genuine spoken ${lang.name} in ${lang.script} script.
-2. Honorific register: ${register === 'respectful' ? lang.honorifics.respectfulLabel : lang.honorifics.familiarLabel}.
-3. Contextualize warmly for persona: ${personaName}. Return ONLY the direct translation.`;
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
-        const res = await fetch(url, {
+        const res = await fetch('/api/indic/translate', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-goog-api-key': apiKey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ role: 'user', parts: [{ text }] }],
-            systemInstruction: { parts: [{ text: systemInstruction }] },
-            generationConfig: { temperature: 0.25, maxOutputTokens: 300 },
+            text,
+            targetLanguage: targetLanguageCode,
+            honorificRegister: register,
+            personName: personaName,
           }),
         });
 
         if (res.ok) {
           const data = await res.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-          if (rawText) {
+          if (data.translatedText) {
             return {
               sourceEnglish: text,
-              targetLanguage: lang.name,
-              targetLanguageCode: lang.code,
-              nativeScript: rawText.replace(/^["']|["']$/g, ''),
-              transliteration: this.generateTransliteration(rawText, lang.code),
+              targetLanguage: data.targetLanguageName || lang.name,
+              targetLanguageCode: data.targetLanguage || lang.code,
+              nativeScript: data.translatedText,
+              transliteration: data.transliteration || this.generateTransliteration(data.translatedText, lang.code),
               formalityRegister:
                 register === 'respectful'
                   ? lang.honorifics.respectfulLabel
                   : lang.honorifics.familiarLabel,
               culturalNuances: `Authentic ${lang.region} kinship register with respectful elder address.`,
-              pronunciationGuide: 'Soothing elder cadence with unhurried phrasing.',
-              speechSynthesisTag: lang.speechSynthesisTag,
-              mode: 'LIVE_GEMINI',
+              pronunciationGuide: 'Warm conversational inflection suitable for family remembrance.',
+              speechSynthesisTag: data.speechSynthesisTag || lang.speechSynthesisTag,
+              mode: data.mode === 'LIVE_GEMINI' ? 'LIVE_GEMINI' : 'SYNTHETIC_CULTURAL_REGISTER',
             };
           }
         }
-      } catch {
-        // Fall through to synthetic cultural register
+      } catch (err) {
+        console.warn('Browser Indic translation route fetch error:', err);
       }
     }
 
-    // High fidelity synthetic cultural fallback
-    const syntheticScript = resolveSyntheticIndicTranslation(text, lang, register);
+    // SERVER / OFFLINE / RESILIENT FALLBACK PATH
+    const contextual = resolveContextualIndicTranslation(text, lang, register, personaName);
     return {
       sourceEnglish: text,
       targetLanguage: lang.name,
       targetLanguageCode: lang.code,
-      nativeScript: syntheticScript,
-      transliteration: this.generateTransliteration(syntheticScript, lang.code),
+      nativeScript: contextual.nativeScript,
+      transliteration: contextual.transliteration,
       formalityRegister:
         register === 'respectful'
           ? lang.honorifics.respectfulLabel

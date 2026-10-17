@@ -97,6 +97,8 @@ interface ChatMessage {
   imageUrl?: string;
   audioUrl?: string;
   isAttachedVoiceSample?: boolean;
+  spokenCleanText?: string;
+  transliteration?: string;
 }
 
 interface MemoryCategory {
@@ -1179,8 +1181,12 @@ export default function PresenceGriefTechPage() {
     }
   };
 
-  // Real Speech Synthesis Fallback ("Talk Back Out Loud") with Muted Avatar Video Sync
-  const speakText = (text: string, customLangTag?: string) => {
+  // Real Speech Synthesis Fallback ("Talk Back Out Loud") with Muted Avatar Video Sync & SAPI Resilience
+  const speakText = (
+    text: string,
+    transliterationFallback?: string,
+    customLangTag?: string
+  ) => {
     if (typeof window === 'undefined') return;
 
     const startMouthAnimation = () => {
@@ -1208,14 +1214,56 @@ export default function PresenceGriefTechPage() {
       return;
     }
 
+    // Chrome SpeechSynthesis bugfix: unpause if paused
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
     window.speechSynthesis.cancel();
 
-    const cleanText = text.replace(/^"|"$/g, '');
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    const targetTag = customLangTag || (indicModeEnabled ? IndicDiscourseEngine.getSpeechTag(indicSelectedDialect) : 'en-IN');
-    utterance.lang = targetTag;
+    // Clean text and extract if parenthetical transliteration is embedded
+    let cleanText = text.replace(/^"|"$/g, '').trim();
+    if (cleanText.includes('\n')) {
+      const parts = cleanText.split('\n');
+      cleanText = parts[0].replace(/^"|"$/g, '').trim();
+      if (!transliterationFallback && parts[1]) {
+        transliterationFallback = parts[1].replace(/^\(|\)$/g, '').trim();
+      }
+    }
 
     const voices = window.speechSynthesis.getVoices();
+
+    // Check if any installed voice supports Hindi or Indic languages
+    const hasIndicVoice = voices.some(
+      (v) =>
+        v.lang.startsWith('hi') ||
+        v.lang.startsWith('bn') ||
+        v.lang.startsWith('ta') ||
+        v.lang.startsWith('te') ||
+        v.lang.startsWith('mr') ||
+        v.lang.startsWith('gu') ||
+        v.lang.startsWith('kn') ||
+        v.lang.startsWith('ml') ||
+        v.lang.startsWith('pa') ||
+        v.lang.startsWith('ur')
+    );
+
+    const isNativeScript = /[\u0900-\u097F\u0980-\u09FF\u0A80-\u0AFF\u0B00-\u0B7F\u0B80-\u0BFF\u0C00-\u0C7F\u0C80-\u0CFF\u0D00-\u0D7F\u0600-\u06FF]/.test(cleanText);
+
+    // CRITICAL AUDIO SILENCE RESOLUTION (Windows SAPI / Chrome without Hindi voice pack):
+    // Standard Windows installations only have English (en-US / en-GB) voices installed (e.g. Microsoft David).
+    // If the text is in native Indic script (Devanagari, etc.), Windows SAPI produces silence or immediate error.
+    // In that situation, we speak the accurate phonetic Latin transliteration so the elder voice speaks aloud clearly!
+    let textToSpeak = cleanText;
+    let targetTag = customLangTag || (indicModeEnabled ? IndicDiscourseEngine.getSpeechTag(indicSelectedDialect) : 'en-IN');
+
+    if (isNativeScript && !hasIndicVoice && transliterationFallback) {
+      textToSpeak = transliterationFallback.replace(/^\(|\)$/g, '').trim();
+      targetTag = 'en-IN';
+    }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = targetTag;
+
     // Strictly filter out female voice names to match the male elder persona (Rajesh Bade Papa / Prof. Anand Sharma)
     const isFemaleVoice = (name: string) => {
       const lower = name.toLowerCase();
@@ -1253,23 +1301,24 @@ export default function PresenceGriefTechPage() {
       );
     };
 
-    // Priority 1: Indian-English / Hindi Male voice
-    // Priority 2: Indian-English / Hindi non-female voice
-    // Priority 3: English Male voice
-    // Priority 4: Any non-female English voice
-    // Priority 5: Fallback to any voice as last resort
-    const preferredVoice =
-      voices.find(
-        (v) => (v.lang === 'en-IN' || v.lang === 'hi-IN') && isMaleVoice(v.name)
-      ) ||
-      voices.find(
-        (v) => (v.lang === 'en-IN' || v.lang === 'hi-IN') && !isFemaleVoice(v.name)
-      ) ||
-      voices.find((v) => v.lang.startsWith('en') && isMaleVoice(v.name)) ||
-      voices.find((v) => v.lang.startsWith('en') && !isFemaleVoice(v.name)) ||
-      voices.find((v) => v.lang === 'en-IN' || v.lang === 'hi-IN') ||
-      voices.find((v) => v.lang.startsWith('en')) ||
-      voices[0];
+    let preferredVoice = null;
+    if (hasIndicVoice && isNativeScript) {
+      preferredVoice =
+        voices.find((v) => (v.lang === 'hi-IN' || v.lang.startsWith('hi')) && isMaleVoice(v.name)) ||
+        voices.find((v) => (v.lang === 'hi-IN' || v.lang.startsWith('hi')) && !isFemaleVoice(v.name)) ||
+        voices.find((v) => v.lang === 'hi-IN' || v.lang.startsWith('hi'));
+    }
+
+    if (!preferredVoice) {
+      preferredVoice =
+        voices.find((v) => v.lang === 'en-IN' && isMaleVoice(v.name)) ||
+        voices.find((v) => v.lang === 'en-IN' && !isFemaleVoice(v.name)) ||
+        voices.find((v) => v.lang.startsWith('en') && isMaleVoice(v.name)) ||
+        voices.find((v) => v.lang.startsWith('en') && !isFemaleVoice(v.name)) ||
+        voices.find((v) => v.lang === 'en-IN' || v.lang === 'hi-IN') ||
+        voices.find((v) => v.lang.startsWith('en')) ||
+        voices[0];
+    }
 
     if (preferredVoice) utterance.voice = preferredVoice;
     // Deepen pitch to 0.88 and gentle rate of 0.92 for warm, dignified elder presence
@@ -1302,7 +1351,8 @@ export default function PresenceGriefTechPage() {
     rawText: string,
     isAttachedSample: boolean = false,
     forcePlay: boolean = false,
-    isNewChatReply: boolean = false
+    isNewChatReply: boolean = false,
+    transliteration?: string
   ) => {
     if (typeof window === 'undefined') return;
 
@@ -1371,7 +1421,7 @@ export default function PresenceGriefTechPage() {
     }
 
     // TIER 4: Dynamic Conversational Web Speech API (Speaks the EXACT new words replied in elder voice)
-    speakText(cleanText);
+    speakText(cleanText, transliteration);
   };
 
   // Companion Voice Waveform Canvas Animation
@@ -1696,6 +1746,7 @@ export default function PresenceGriefTechPage() {
       }
 
       let finalSpokenText = replyText;
+      let finalTransliteration = '';
       let displayMessageText = `"${replyText}"`;
 
       // If Indic vernacular mode is toggled, translate and enrich using IndicDiscourseEngine
@@ -1718,6 +1769,7 @@ export default function PresenceGriefTechPage() {
           }
 
           finalSpokenText = scriptedText;
+          finalTransliteration = indicTranslation.transliteration;
           displayMessageText = `"${scriptedText}"\n(${indicTranslation.transliteration})`;
         } catch {
           // Keep original English text if translation fails
@@ -1730,6 +1782,8 @@ export default function PresenceGriefTechPage() {
         author: companionPersonName,
         avatarUrl: activePortraitUrl,
         text: displayMessageText,
+        spokenCleanText: finalSpokenText,
+        transliteration: finalTransliteration,
         faithfulnessScore: indicModeEnabled ? 'Vernacular Grounded' : 'Grounded & Empathetic',
         audioSnippetLength: indicModeEnabled ? 'Indic Dialect Voice' : 'Attached Voice',
         isAttachedVoiceSample: true,
@@ -1739,7 +1793,7 @@ export default function PresenceGriefTechPage() {
       setIsAiThinking(false);
 
       // 2. Synthesize audio dynamically for the newly generated reply (isNewChatReply: true)
-      await speakCompanionMessage(finalSpokenText, true, true, true);
+      await speakCompanionMessage(finalSpokenText, true, true, true, finalTransliteration);
     } catch (err: any) {
       console.warn('Chat interaction error:', err);
       setIsAiThinking(false);
@@ -2858,10 +2912,11 @@ export default function PresenceGriefTechPage() {
                               onClick={() => {
                                 const isInitialOpener = msg.id.startsWith('seed-companion');
                                 speakCompanionMessage(
-                                  msg.text,
+                                  msg.spokenCleanText || msg.text,
                                   Boolean(msg.isAttachedVoiceSample),
                                   false,
-                                  !isInitialOpener
+                                  !isInitialOpener,
+                                  msg.transliteration
                                 );
                               }}
                               className="w-7 h-7 rounded-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 flex items-center justify-center text-xs transition"
