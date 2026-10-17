@@ -52,6 +52,7 @@ import {
   Translate
 } from '@phosphor-icons/react';
 import { CRISIS_DIRECTORIES } from '@/config/crisisHelplines';
+import GoogleDrivePickerModal, { GoogleDriveLogoIcon } from '@/components/GoogleDrivePickerModal';
 
 interface ChatMessage {
   id: string;
@@ -82,6 +83,7 @@ interface UploadedMediaItem {
   type: 'image' | 'audio' | 'document';
   date: string;
   size?: string;
+  source?: string;
 }
 
 const DEFAULT_MEMORY_CATEGORIES: MemoryCategory[] = [
@@ -357,6 +359,35 @@ export default function PresenceGriefTechPage() {
   // Breathing Modal state
   const [isBreathingModalOpen, setIsBreathingModalOpen] = useState(false);
   const [breathInstruction, setBreathInstruction] = useState('Breathe in deeply...');
+  const [breathCycle, setBreathCycle] = useState(0);
+
+  // Google Drive Cloud Vault Integration state
+  const [isGoogleDriveModalOpen, setIsGoogleDriveModalOpen] = useState(false);
+  const [googleDriveMode, setGoogleDriveMode] = useState<'audio' | 'photos'>('audio');
+
+  const handleGoogleDriveImport = (
+    items: Array<{ title: string; url: string; size: string; date: string; source: string; type: 'audio' | 'image' }>
+  ) => {
+    items.forEach((item) => {
+      const newMedia: UploadedMediaItem = {
+        id: `gdrive-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        title: item.title,
+        url: item.url,
+        type: item.type,
+        date: item.date,
+        size: item.size,
+        source: item.source,
+      };
+
+      if (item.type === 'audio') {
+        setUploadedAudioVault((prev) => [newMedia, ...prev]);
+        setActiveAudioUrl(item.url);
+        setActiveAudioTitle(item.title);
+      } else {
+        setUploadedPhotos((prev) => [newMedia, ...prev]);
+      }
+    });
+  };
 
   // Initialize Speech Synthesis Voices
   useEffect(() => {
@@ -992,11 +1023,17 @@ export default function PresenceGriefTechPage() {
 
   // Breathing modal timer loop
   useEffect(() => {
-    if (!isBreathingModalOpen) return;
-    let cycle = 0;
+    if (!isBreathingModalOpen) {
+      setBreathCycle(0);
+      setBreathInstruction('Breathe in deeply...');
+      return;
+    }
+    let stepCount = 0;
     const interval = setInterval(() => {
-      cycle++;
-      setBreathInstruction(cycle % 2 === 1 ? 'Hold & Gently exhale...' : 'Breathe in deeply...');
+      stepCount++;
+      const currentCycle = Math.min(3, Math.floor(stepCount / 2));
+      setBreathCycle(currentCycle);
+      setBreathInstruction(stepCount % 2 === 1 ? 'Hold & Gently exhale...' : 'Breathe in deeply...');
     }, 4000);
     return () => clearInterval(interval);
   }, [isBreathingModalOpen]);
@@ -1117,18 +1154,28 @@ export default function PresenceGriefTechPage() {
           {/* VIEW SWITCHER PILL */}
           <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-full p-1 text-xs">
             <button
-              onClick={() => setViewMode('mindmap')}
+              onClick={() => {
+                setActiveTab('memories');
+                setViewMode('mindmap');
+              }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
-                viewMode === 'mindmap' ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/40' : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'memories' && viewMode === 'mindmap'
+                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/40'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <Planet className="text-sm" />
               <span>Mind Map Explorer</span>
             </button>
             <button
-              onClick={() => setViewMode('companion')}
+              onClick={() => {
+                setActiveTab('memories');
+                setViewMode('companion');
+              }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
-                viewMode === 'companion' ? 'bg-purple-950 text-purple-300 border border-purple-700/40' : 'text-slate-400 hover:text-slate-200'
+                activeTab === 'memories' && viewMode === 'companion'
+                  ? 'bg-purple-950 text-purple-300 border border-purple-700/40'
+                  : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <ChatCircleText className="text-sm" />
@@ -1326,13 +1373,27 @@ export default function PresenceGriefTechPage() {
                 <h2 className="text-2xl font-serif text-slate-100">Photos &amp; Keepsakes</h2>
                 <p className="text-xs text-slate-400">{uploadedPhotos.length + 80} Scanned photos &amp; visual memories</p>
               </div>
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition shadow-lg"
-              >
-                <UploadSimple className="text-base" />
-                <span>Upload Photo</span>
-              </button>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => {
+                    setGoogleDriveMode('photos');
+                    setIsGoogleDriveModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 text-cyan-200 hover:text-white text-xs font-medium transition shadow-md"
+                  title="Import scanned photos from Google Drive"
+                >
+                  <GoogleDriveLogoIcon className="w-4 h-4" />
+                  <span>Import from Drive</span>
+                </button>
+
+                <button
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition shadow-lg"
+                >
+                  <UploadSimple className="text-base" />
+                  <span>Upload Photo</span>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
@@ -1345,7 +1406,13 @@ export default function PresenceGriefTechPage() {
                     <p className="text-xs font-medium text-slate-200 truncate">{photo.title}</p>
                     <div className="flex items-center justify-between text-[10px] text-slate-400 mt-1 font-mono">
                       <span>{photo.date}</span>
-                      <span>{photo.size || 'Image'}</span>
+                      {photo.source ? (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 flex items-center gap-1">
+                          <GoogleDriveLogoIcon className="w-2.5 h-2.5" /> Drive
+                        </span>
+                      ) : (
+                        <span>{photo.size || 'Image'}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1543,13 +1610,27 @@ export default function PresenceGriefTechPage() {
                 <h2 className="text-2xl font-serif text-slate-100">Audio Voice Vault</h2>
                 <p className="text-xs text-slate-400">{uploadedAudioVault.length + 12} Verified voice recordings</p>
               </div>
-              <button
-                onClick={() => setIsUploadModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition shadow-lg"
-              >
-                <UploadSimple className="text-base" />
-                <span>Upload Voice Note</span>
-              </button>
+              <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => {
+                    setGoogleDriveMode('audio');
+                    setIsGoogleDriveModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-amber-500/30 text-amber-200 hover:text-white text-xs font-medium transition shadow-md"
+                  title="Import audio recordings from Google Drive"
+                >
+                  <GoogleDriveLogoIcon className="w-4 h-4" />
+                  <span>Import from Drive</span>
+                </button>
+
+                <button
+                  onClick={() => setIsUploadModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-medium transition shadow-lg"
+                >
+                  <UploadSimple className="text-base" />
+                  <span>Upload Voice Note</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3 max-w-3xl">
@@ -1561,6 +1642,7 @@ export default function PresenceGriefTechPage() {
                         if (audio.url) {
                           setActiveAudioUrl(audio.url);
                           setActiveAudioTitle(audio.title);
+                          setActiveTab('memories');
                           setViewMode('companion');
                           playAuthenticVoiceAudio(audio.url);
                         } else {
@@ -1574,7 +1656,17 @@ export default function PresenceGriefTechPage() {
                     </button>
                     <div>
                       <p className="text-sm font-medium text-slate-200">{audio.title}</p>
-                      <span className="text-xs text-slate-400 font-mono">Recorded {audio.date} • Grounded in vault</span>
+                      <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                        <span>Recorded {audio.date}</span>
+                        <span>&bull;</span>
+                        {audio.source ? (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/50 flex items-center gap-1">
+                            <GoogleDriveLogoIcon className="w-2.5 h-2.5" /> Drive
+                          </span>
+                        ) : (
+                          <span>Grounded in vault</span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -1583,6 +1675,7 @@ export default function PresenceGriefTechPage() {
                       onClick={() => {
                         setActiveAudioUrl(audio.url || null);
                         setActiveAudioTitle(audio.title);
+                        setActiveTab('memories');
                         setViewMode('companion');
                       }}
                       className="px-3 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition"
@@ -2193,25 +2286,70 @@ export default function PresenceGriefTechPage() {
 
       {/* BREATHING EXERCISE MODAL */}
       {isBreathingModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="glass-panel max-w-sm w-full rounded-3xl p-6 border border-cyan-500/30 text-center relative shadow-2xl">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel max-w-md w-full rounded-3xl p-7 border border-cyan-500/40 text-center relative shadow-2xl bg-[#0b101b]/95 overflow-hidden">
+            {/* Ambient background glow */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-24 bg-cyan-500/15 rounded-full blur-2xl pointer-events-none" />
+
             <button
               onClick={() => setIsBreathingModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-white text-lg"
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full hover:bg-slate-800 transition z-20"
+              title="Close breathing exercise"
             >
-              <X />
+              <X className="text-base" />
             </button>
-            <div className="py-4 flex flex-col items-center">
-              <div className="relative w-40 h-40 flex items-center justify-center mb-6">
-                <div className="absolute w-28 h-28 rounded-full bg-gradient-to-tr from-cyan-500/30 to-purple-500/30 border border-cyan-400 animate-breathe"></div>
-                <span className="relative z-10 text-base font-medium text-cyan-200 tracking-wide">{breathInstruction}</span>
+
+            <div className="pt-2 pb-4 flex flex-col items-center relative z-10">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-950/70 border border-cyan-500/30 text-cyan-300 text-[11px] font-medium mb-2 shadow-sm">
+                <Wind className="text-sm text-cyan-400" />
+                <span>Mindful Breathing Pause</span>
               </div>
-              <h4 className="text-sm font-semibold text-slate-200">Grounded in the Present</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-xs">Take 4 slow breaths. Feel your feet resting on the floor.</p>
+
+              {/* SPACIOUS BREATHING ORB WITH NO TEXT OVERFLOW */}
+              <div className="relative w-56 h-56 flex items-center justify-center my-3">
+                {/* Outer ambient pulsing aura ring */}
+                <div className="absolute w-52 h-52 rounded-full bg-cyan-500/10 border border-cyan-400/20 animate-breathe-aura pointer-events-none" />
+                
+                {/* Mid concentric glowing orb */}
+                <div className="absolute w-44 h-44 rounded-full bg-gradient-to-tr from-cyan-500/25 via-indigo-500/20 to-purple-500/25 border-2 border-cyan-400/70 animate-breathe pointer-events-none" />
+
+                {/* Central Instruction Content - Generously centered with soft padding */}
+                <div className="relative z-10 flex flex-col items-center justify-center text-center px-4 max-w-[170px]">
+                  <span className="text-base font-serif font-medium text-cyan-100 tracking-wide leading-snug drop-shadow-md transition-all duration-700">
+                    {breathInstruction}
+                  </span>
+                  <span className="text-[10px] text-cyan-300/80 font-mono mt-1.5 tracking-wider uppercase">
+                    4s rhythm
+                  </span>
+                </div>
+              </div>
+
+              {/* 4-BREATH PROGRESS PIPS & COUNTER */}
+              <div className="flex items-center justify-center gap-2 mt-2 mb-1.5">
+                {[0, 1, 2, 3].map((step) => (
+                  <span
+                    key={step}
+                    className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${
+                      breathCycle >= step
+                        ? 'bg-cyan-400 shadow-[0_0_10px_rgba(56,189,248,0.9)] scale-110'
+                        : 'bg-slate-700/80'
+                    }`}
+                  />
+                ))}
+              </div>
+              <p className="text-[11px] font-mono text-cyan-200/70 mb-3">
+                Breath Cycle {breathCycle + 1} of 4
+              </p>
+
+              <h4 className="text-base font-semibold text-slate-100">Grounded in the Present</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs leading-relaxed">
+                Take 4 slow breaths. Feel the quiet stillness and your feet resting gently on the floor.
+              </p>
             </div>
+
             <button
               onClick={() => setIsBreathingModalOpen(false)}
-              className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white transition"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-xs font-semibold text-white shadow-lg transition"
             >
               Return to Session
             </button>
@@ -2448,6 +2586,14 @@ export default function PresenceGriefTechPage() {
           </div>
         </div>
       )}
+
+      {/* GOOGLE DRIVE CLOUD PICKER MODAL */}
+      <GoogleDrivePickerModal
+        isOpen={isGoogleDriveModalOpen}
+        onClose={() => setIsGoogleDriveModalOpen(false)}
+        mode={googleDriveMode}
+        onImport={handleGoogleDriveImport}
+      />
     </div>
   );
 }
