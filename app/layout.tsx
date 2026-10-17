@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import SurrealBackdrop from '@/components/SurrealBackdrop';
 
 export const metadata: Metadata = {
   title: 'ParamSathya — Private Remembrance & Guided Reflection',
@@ -23,8 +24,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col">
-        {children}
+      <body className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col relative">
+        <SurrealBackdrop />
+        <div className="relative z-10 flex-1 flex flex-col h-full overflow-hidden">
+          {children}
+        </div>
       </body>
     </html>
   );

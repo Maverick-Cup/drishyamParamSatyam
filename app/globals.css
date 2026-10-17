@@ -102,3 +102,34 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
+
+/* Surreal Backdrop Styles */
+.surreal-backdrop__photo {
+  background-image: url('/backgrounds/loved-ones-watch.jpg');
+  background-size: cover;
+  background-position: center 38%;
+  filter: saturate(0.9) contrast(1.05) brightness(0.65);
+  transform: scale(1.03);
+  animation: surrealDrift 48s ease-in-out infinite alternate;
+}
+
+@keyframes surrealDrift {
+  0% {
+    transform: scale(1.03) translate3d(0, 0, 0);
+  }
+  50% {
+    transform: scale(1.07) translate3d(-1%, -0.8%, 0);
+  }
+  100% {
+    transform: scale(1.04) translate3d(1%, 0.6%, 0);
+  }
+}
+
+.surreal-backdrop__glow {
+  background: radial-gradient(circle at 50% 25%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+              radial-gradient(circle at 80% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 65%);
+}
+
+.surreal-backdrop__quote {
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.85), 0 0 24px rgba(245, 158, 11, 0.25);
+}
