@@ -10,17 +10,26 @@ import {
   RenderDecisionPacket,
   RenderAuthorizationResult,
   AuditEvent,
-  ResponseMode
+  ResponseMode,
+  MediaVaultRecord
 } from './models';
 
 export interface MemoryRepository {
   findById(id: string, profileId: string): Promise<MemoryRecord | null>;
   searchVector768(embedding: number[], profileId: string, limit: number): Promise<MemoryRecord[]>;
   save(record: MemoryRecord): Promise<void>;
+  delete?(id: string, profileId: string): Promise<void>;
 }
 
 export interface PermissionRepository {
   getGrant(userId: string, profileId: string): Promise<PermissionGrant | null>;
+}
+
+export interface MediaRepository {
+  findById(id: string, profileId: string): Promise<MediaVaultRecord | null>;
+  listByProfile(profileId: string, type?: 'image' | 'audio' | 'document', limit?: number): Promise<MediaVaultRecord[]>;
+  save(record: MediaVaultRecord): Promise<void>;
+  delete(id: string, profileId: string): Promise<void>;
 }
 
 export interface AuditRepository {

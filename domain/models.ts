@@ -155,3 +155,24 @@ export interface AuditEvent {
   eventType: 'AUTHZ_DECISION' | 'GROUNDING_EVAL' | 'MODE_TRANSITION' | 'MEDIA_RENDER' | 'SAFETY_TRIGGER';
   payload: Record<string, unknown>;
 }
+
+export interface MediaVaultRecord {
+  id: string;
+  profileId: string;
+  ownerUid: string;
+  type: 'image' | 'audio' | 'document';
+  title: string;
+  category: string;
+  filename: string;
+  storageUri: string;
+  signedUrl?: string;
+  mimeType: string;
+  sizeBytes: number;
+  originalSizeBytes?: number;
+  compressed?: boolean;
+  reductionPercent?: number;
+  durationSeconds?: number;
+  checksumSha256?: string;
+  uploadedAt: string;
+}
+

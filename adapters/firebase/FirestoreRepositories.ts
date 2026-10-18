@@ -6,12 +6,14 @@ import { FieldValue, Firestore } from 'firebase-admin/firestore';
 import {
   MemoryRecord,
   PermissionGrant,
-  AuditEvent
+  AuditEvent,
+  MediaVaultRecord
 } from '../../domain/models';
 import {
   MemoryRepository,
   PermissionRepository,
-  AuditRepository
+  AuditRepository,
+  MediaRepository
 } from '../../domain/repositories';
 
 export class FirestoreMemoryRepository implements MemoryRepository {
@@ -74,6 +76,15 @@ export class FirestoreMemoryRepository implements MemoryRepository {
 
     await docRef.set(dataToSave, { merge: true });
   }
+
+  async delete(id: string, profileId: string): Promise<void> {
+    await this.db
+      .collection('profiles')
+      .doc(profileId)
+      .collection('memories')
+      .doc(id)
+      .delete();
+  }
 }
 
 export class FirestorePermissionRepository implements PermissionRepository {
@@ -128,3 +139,57 @@ export class FirestoreAuditRepository implements AuditRepository {
     return snapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.data() as AuditEvent);
   }
 }
+
+export class FirestoreMediaRepository implements MediaRepository {
+  constructor(private readonly db: Firestore) {}
+
+  async findById(id: string, profileId: string): Promise<MediaVaultRecord | null> {
+    const docSnap = await this.db
+      .collection('profiles')
+      .doc(profileId)
+      .collection('media_vault')
+      .doc(id)
+      .get();
+
+    if (!docSnap.exists) {
+      return null;
+    }
+
+    return docSnap.data() as MediaVaultRecord;
+  }
+
+  async listByProfile(profileId: string, type?: 'image' | 'audio' | 'document', limit = 50): Promise<MediaVaultRecord[]> {
+    let query: FirebaseFirestore.Query = this.db
+      .collection('profiles')
+      .doc(profileId)
+      .collection('media_vault')
+      .orderBy('uploadedAt', 'desc')
+      .limit(limit);
+
+    if (type) {
+      query = query.where('type', '==', type);
+    }
+
+    const snapshot = await query.get();
+    return snapshot.docs.map((doc: FirebaseFirestore.QueryDocumentSnapshot) => doc.data() as MediaVaultRecord);
+  }
+
+  async save(record: MediaVaultRecord): Promise<void> {
+    await this.db
+      .collection('profiles')
+      .doc(record.profileId)
+      .collection('media_vault')
+      .doc(record.id)
+      .set(record, { merge: true });
+  }
+
+  async delete(id: string, profileId: string): Promise<void> {
+    await this.db
+      .collection('profiles')
+      .doc(profileId)
+      .collection('media_vault')
+      .doc(id)
+      .delete();
+  }
+}
+

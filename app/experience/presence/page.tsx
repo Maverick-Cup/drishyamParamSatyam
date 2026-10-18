@@ -85,6 +85,7 @@ import { IndicCulturalModal, UnifiedIndicConfig } from '@/components/IndicCultur
 import { INDIC_LANGUAGES } from '@/config/indicLanguages';
 import { IndicDiscourseEngine } from '@/services/IndicDiscourseEngine';
 import MindfulExpectationModal from '@/components/MindfulExpectationModal';
+import { compressImageClient, downsampleAudioTo16kMono } from '@/lib/mediaCompression';
 
 interface ChatMessage {
   id: string;
@@ -267,6 +268,12 @@ export default function PresenceGriefTechPage() {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadSuccessMsg, setUploadSuccessMsg] = useState('');
+  const [compressionInfo, setCompressionInfo] = useState<{
+    originalSize: number;
+    compressedSize: number;
+    reductionPercent: number;
+  } | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const chatAttachmentInputRef = useRef<HTMLInputElement | null>(null);
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -853,25 +860,60 @@ export default function PresenceGriefTechPage() {
     }
   };
 
-  // Handle File Selection for Upload Modal
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle File Selection with Automatic Client-Side Pre-Compression
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setSelectedFile(file);
     if (!uploadTitle) {
       setUploadTitle(file.name.replace(/\.[^/.]+$/, ''));
     }
 
     if (file.type.startsWith('image/')) {
-      const url = URL.createObjectURL(file);
-      setUploadPreviewUrl(url);
+      setIsCompressing(true);
+      try {
+        const compressed = await compressImageClient(file, { maxDimension: 1200, quality: 0.82 });
+        setSelectedFile(compressed.file);
+        setCompressionInfo({
+          originalSize: compressed.originalSize,
+          compressedSize: compressed.compressedSize,
+          reductionPercent: compressed.reductionPercent,
+        });
+        const url = URL.createObjectURL(compressed.file);
+        setUploadPreviewUrl(url);
+      } catch (err) {
+        console.warn('Image compression fallback:', err);
+        setSelectedFile(file);
+        setUploadPreviewUrl(URL.createObjectURL(file));
+      } finally {
+        setIsCompressing(false);
+      }
+    } else if (file.type.startsWith('audio/')) {
+      setIsCompressing(true);
+      try {
+        const compressed = await downsampleAudioTo16kMono(file);
+        setSelectedFile(compressed.file);
+        setCompressionInfo({
+          originalSize: compressed.originalSize,
+          compressedSize: compressed.compressedSize,
+          reductionPercent: compressed.reductionPercent,
+        });
+        setUploadPreviewUrl(null);
+      } catch (err) {
+        console.warn('Audio compression fallback:', err);
+        setSelectedFile(file);
+        setUploadPreviewUrl(null);
+      } finally {
+        setIsCompressing(false);
+      }
     } else {
+      setSelectedFile(file);
+      setCompressionInfo(null);
       setUploadPreviewUrl(null);
     }
   };
 
-  // Submit File Upload to API and Update State
+  // Submit File Upload to API and Update State with Persistence
   const handlePerformUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) return;
@@ -884,6 +926,14 @@ export default function PresenceGriefTechPage() {
       formData.append('file', selectedFile);
       formData.append('category', uploadCategory);
       formData.append('title', uploadTitle || selectedFile.name);
+      formData.append('profileId', 'profile-satya-default');
+      formData.append('ownerUid', userProfile.email || 'user-demo-1');
+
+      if (compressionInfo) {
+        formData.append('compressed', 'true');
+        formData.append('originalSize', String(compressionInfo.originalSize));
+        formData.append('reductionPercent', String(compressionInfo.reductionPercent));
+      }
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -894,7 +944,7 @@ export default function PresenceGriefTechPage() {
 
       if (data.success) {
         const newMediaItem: UploadedMediaItem = {
-          id: Date.now().toString(),
+          id: data.mediaId || Date.now().toString(),
           title: data.title,
           url: data.fileUrl,
           type: data.fileType,
@@ -924,11 +974,13 @@ export default function PresenceGriefTechPage() {
           )
         );
 
-        setUploadSuccessMsg(`Successfully uploaded "${data.title}" into memory brain!`);
+        const reductionMsg = data.reductionPercent > 0 ? ` (Compressed -${data.reductionPercent}%)` : '';
+        setUploadSuccessMsg(`Successfully saved "${data.title}"${reductionMsg} into persistent vault!`);
         setTimeout(() => {
           setIsUploadModalOpen(false);
           setIsUploading(false);
           setSelectedFile(null);
+          setCompressionInfo(null);
           setUploadPreviewUrl(null);
           setUploadTitle('');
           setUploadSuccessMsg('');
@@ -1938,123 +1990,169 @@ export default function PresenceGriefTechPage() {
         onOpenUserProfile={() => setIsUserProfileModalOpen(true)}
       />
 
-      {/* EXPANDED DESKTOP COMMAND & STATUS HEADER (>= 768px) */}
-      <header className="hidden md:flex h-16 border-b border-white/10 px-6 items-center justify-between z-30 shrink-0 bg-[#080c14]/75 backdrop-blur-md">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 text-xs mr-2">
+      {/* EXPANDED DESKTOP COMMAND & STATUS HEADER (>= 768px) - RE-IMAGINED 3-ZONE LAYOUT */}
+      <header className="hidden md:flex h-16 border-b border-white/10 px-5 lg:px-6 items-center justify-between z-30 shrink-0 bg-[#080c14]/80 backdrop-blur-md gap-3">
+        {/* ZONE 1: BRAND IDENTITY & TRUST SANCTUARY (Positions 1 & 2 per snip) */}
+        <div className="flex items-center gap-2.5 lg:gap-3 shrink-0">
+          <Link
+            href="/"
+            className="text-slate-400 hover:text-slate-200 transition flex items-center gap-1.5 text-xs mr-1"
+            title="Return to Main Portal"
+          >
             <ArrowLeft className="text-sm" />
-
             <span className="hidden sm:inline">Portal</span>
           </Link>
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 via-purple-500 to-amber-400 p-[1.5px] flex items-center justify-center shadow-lg shadow-purple-500/20">
+
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 via-purple-500 to-amber-400 p-[1.5px] flex items-center justify-center shadow-lg shadow-purple-500/20 shrink-0">
               <div className="w-full h-full bg-[#080c14] rounded-full flex items-center justify-center">
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-violet-300 font-bold text-lg leading-none">
                   P
                 </span>
               </div>
             </div>
-            <div>
-              <h1 className="text-base font-semibold tracking-wider text-slate-100 flex items-center gap-2">
-                ParamSathya
-                <span className="text-[10px] font-normal tracking-wide px-2.5 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-700/40 text-cyan-300">
-                  Presence-Blessings Intact
-                </span>
-              </h1>
-            </div>
+            <h1 className="text-base font-semibold tracking-wider text-slate-100 hidden sm:block">
+              ParamSathya
+            </h1>
           </div>
-          <div className="h-4 w-px bg-slate-800 mx-1 hidden sm:block"></div>
 
-          {/* VIEW SWITCHER PILL */}
-          <div className="flex items-center gap-1 bg-slate-900/90 border border-slate-800 rounded-full p-1 text-xs">
-            <button
-              onClick={() => {
-                setActiveTab('memories');
-                setViewMode('mindmap');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
-                activeTab === 'memories' && viewMode === 'mindmap'
-                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <Planet className="text-sm" />
-              <span>Mind Map Explorer</span>
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('memories');
-                setViewMode('companion');
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
-                activeTab === 'memories' && viewMode === 'companion'
-                  ? 'bg-purple-950 text-purple-300 border border-purple-700/40'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-            >
-              <ChatCircleText className="text-sm" />
-              <span>Avatar Companion</span>
-            </button>
-            <Link
-              href="/playground/sync"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-950/40 border border-emerald-600/40 hover:bg-emerald-900/40 shadow-sm"
-              title="Open Sync Lip-Sync 2 Pro Studio (Reusable Base Video Asset)"
-            >
-              <VideoCamera className="text-sm text-emerald-400" />
-              <span>Sync 2 Pro</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => setIsIndicModalOpen(true)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium shadow-sm ${
-                indicModeEnabled
-                  ? 'text-amber-300 bg-amber-950/80 border border-amber-500/70 hover:bg-amber-900/80'
-                  : 'text-amber-300/80 hover:text-amber-200 bg-amber-950/30 border border-amber-600/30 hover:bg-amber-900/40'
-              }`}
-              title="Open Indic Cultural Dialect Studio (AI4Bharat IndicVoices)"
-            >
-              <Translate className="text-sm text-amber-400" />
-              <span>{indicModeEnabled ? `Indic (${indicSelectedDialect.toUpperCase()})` : 'Indic Language'}</span>
-            </button>
-            <Link
-              href="/developer/guardrails"
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
-            >
-              <ShieldCheck className="text-sm text-emerald-400" />
-              <span>Guardrails</span>
-            </Link>
+          {/* BADGE 1: Presence-Blessings Intact */}
+          <span className="text-[10px] font-normal tracking-wide px-2 py-0.5 rounded-full bg-cyan-950/70 border border-cyan-700/40 text-cyan-300 shadow-sm shrink-0">
+            Presence-Blessings Intact
+          </span>
+
+          {/* BADGE 2 (Arrow 2): Guardrails Verification Console */}
+          <Link
+            href="/developer/guardrails"
+            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-600/40 text-emerald-300 text-[10px] font-medium hover:bg-emerald-900/50 transition shadow-sm shrink-0"
+            title="Open Guardrails, Verification & Consent Console"
+          >
+            <ShieldCheck className="text-xs text-emerald-400 shrink-0" />
+            <span>Guardrails</span>
+          </Link>
+
+          {/* BADGE 3 (Arrow 1): Private & Grounded Sanctuary */}
+          <div
+            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/40 text-amber-200/90 text-[10px] font-medium shadow-sm shrink-0"
+            title="Zero third-party telemetry, end-to-end grounded memory space"
+          >
+            <ShieldCheck className="text-xs text-amber-400 shrink-0" />
+            <span>Private &amp; Grounded</span>
           </div>
         </div>
 
-        {/* Center Session Active */}
-        <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-full bg-slate-900/60 border border-slate-800/80 shadow-inner">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
-          <span className="text-xs text-slate-300 font-medium">Session Active</span>
-          <span className="text-[11px] text-slate-400 font-mono">14m 20s</span>
+        {/* ZONE 2: WORKSPACE VIEWS & CREATIVE STUDIOS (Center) */}
+        <div className="flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 rounded-full p-1 text-xs shadow-inner shrink-0">
+          <button
+            onClick={() => {
+              setActiveTab('memories');
+              setViewMode('mindmap');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
+              activeTab === 'memories' && viewMode === 'mindmap'
+                ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Planet className="text-sm shrink-0" />
+            <span className="hidden lg:inline">Mind Map Explorer</span>
+            <span className="lg:hidden">Mind Map</span>
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('memories');
+              setViewMode('companion');
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full transition font-medium ${
+              activeTab === 'memories' && viewMode === 'companion'
+                ? 'bg-purple-950 text-purple-300 border border-purple-700/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ChatCircleText className="text-sm shrink-0" />
+            <span className="hidden lg:inline">Avatar Companion</span>
+            <span className="lg:hidden">Avatar</span>
+          </button>
+
+          <div className="h-3.5 w-px bg-slate-800 mx-0.5"></div>
+
+          <Link
+            href="/playground/sync"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition font-medium text-emerald-300 hover:text-emerald-200 bg-emerald-950/40 border border-emerald-600/40 hover:bg-emerald-900/40 shadow-sm"
+            title="Open Sync Lip-Sync 2 Pro Studio (Reusable Base Video Asset)"
+          >
+            <VideoCamera className="text-sm text-emerald-400 shrink-0" />
+            <span className="hidden xl:inline">Sync 2 Pro</span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setIsIndicModalOpen(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition font-medium shadow-sm ${
+              indicModeEnabled
+                ? 'text-amber-300 bg-amber-950/80 border border-amber-500/70 hover:bg-amber-900/80'
+                : 'text-amber-300/80 hover:text-amber-200 bg-amber-950/30 border border-amber-600/30 hover:bg-amber-900/40'
+            }`}
+            title="Open Indic Cultural Dialect Studio (AI4Bharat IndicVoices)"
+          >
+            <Translate className="text-sm text-amber-400 shrink-0" />
+            <span className="hidden xl:inline">{indicModeEnabled ? `Indic (${indicSelectedDialect.toUpperCase()})` : 'Indic'}</span>
+          </button>
         </div>
 
-        {/* Privacy, Theme Selector, Ambient Audio & Profile */}
-        <div className="flex items-center gap-2.5">
-          {/* THEME & SOUNDSCAPE SELECTOR DROPDOWN */}
-          <div className="relative">
+        {/* ZONE 3: ATMOSPHERE, SANCTUARY TOOLS & USER PRESENCE (Right) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Live Session Active Capsule */}
+          <div className="hidden 2xl:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/60 border border-slate-800/80 shadow-inner text-xs">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span className="text-slate-300 font-medium">Session Active</span>
+            <span className="text-[11px] text-slate-400 font-mono">14m 20s</span>
+          </div>
+
+          {/* UNIFIED ATMOSPHERE CAPSULE (THEME SELECTOR + AMBIENCE MUTE) */}
+          <div className="relative flex items-center bg-slate-900/80 border border-slate-700/80 rounded-full p-0.5 shadow-sm">
             <button
               onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}
-              className="px-2.5 py-1 rounded-full bg-slate-900/80 hover:bg-slate-800/80 text-xs text-slate-200 border border-slate-700/80 flex items-center gap-1.5 transition shadow-sm"
-              title="Select seasonal theme and gentle backdrop ambience"
+              className="px-2.5 py-1 text-xs text-slate-200 hover:text-white flex items-center gap-1.5 transition rounded-full hover:bg-slate-800/60"
+              title="Select seasonal theme and soundscape"
             >
-              {activeTheme === 'cosmic' && <Sparkle className="text-purple-400 text-sm" />}
-              {activeTheme === 'rains' && <Drop className="text-cyan-400 text-sm" />}
-              {activeTheme === 'snowfall' && <Snowflake className="text-sky-300 text-sm" />}
-              {activeTheme === 'springs' && <Plant className="text-emerald-400 text-sm" />}
-              {activeTheme === 'autumn' && <Sun className="text-amber-400 text-sm" />}
-              <span className="hidden xl:inline capitalize font-medium text-slate-300">
+              {activeTheme === 'cosmic' && <Sparkle className="text-purple-400 text-xs" />}
+              {activeTheme === 'rains' && <Drop className="text-cyan-400 text-xs" />}
+              {activeTheme === 'snowfall' && <Snowflake className="text-sky-300 text-xs" />}
+              {activeTheme === 'springs' && <Plant className="text-emerald-400 text-xs" />}
+              {activeTheme === 'autumn' && <Sun className="text-amber-400 text-xs" />}
+              <span className="hidden xl:inline capitalize font-medium text-slate-300 text-[11px]">
                 {activeTheme === 'autumn' ? 'Autumn' : activeTheme}
               </span>
               <CaretDown className={`text-slate-400 text-[10px] transition-transform ${isThemeDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
+            <div className="h-3 w-px bg-slate-700 mx-0.5"></div>
+
+            <button
+              onClick={() => {
+                const nextMuted = !isAmbientMuted;
+                setIsAmbientMuted(nextMuted);
+                if (ambientAudioRef.current) {
+                  if (nextMuted) {
+                    ambientAudioRef.current.pause();
+                  } else if (!isSpeaking && !isPlaying) {
+                    ambientAudioRef.current.play().catch(() => {});
+                  }
+                }
+              }}
+              className={`p-1 px-1.5 rounded-full text-xs transition flex items-center justify-center ${
+                isAmbientMuted
+                  ? 'text-slate-400 hover:text-slate-200'
+                  : 'text-cyan-300'
+              }`}
+              title={isAmbientMuted ? 'Unmute ambience' : 'Mute ambience (auto-ducks on avatar speech)'}
+            >
+              {isAmbientMuted ? <SpeakerSlash className="text-xs" /> : <SpeakerHigh className="text-xs animate-pulse text-cyan-400" />}
+            </button>
+
+            {/* THEME SELECTOR DROPDOWN */}
             {isThemeDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-[#0b121f]/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl p-1.5 z-50 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-[#0b121f]/95 border border-slate-700/80 shadow-2xl backdrop-blur-xl p-1.5 z-50 text-xs space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800">
                   Seasonal Themes &amp; Ambience
                 </div>
@@ -2137,67 +2235,47 @@ export default function PresenceGriefTechPage() {
             )}
           </div>
 
-          {/* AMBIENT AUDIO MUTE TOGGLE */}
-          <button
-            onClick={() => {
-              const nextMuted = !isAmbientMuted;
-              setIsAmbientMuted(nextMuted);
-              if (ambientAudioRef.current) {
-                if (nextMuted) {
-                  ambientAudioRef.current.pause();
-                } else if (!isSpeaking && !isPlaying) {
-                  ambientAudioRef.current.play().catch(() => {});
-                }
-              }
-            }}
-            className={`p-1.5 rounded-full border transition text-xs flex items-center gap-1 ${
-              isAmbientMuted
-                ? 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-slate-200'
-                : 'bg-cyan-950/80 border-cyan-500/40 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.25)]'
-            }`}
-            title={isAmbientMuted ? 'Unmute theme ambience' : 'Mute theme ambience (auto-ducks on avatar speech)'}
-          >
-            {isAmbientMuted ? <SpeakerSlash className="text-sm" /> : <SpeakerHigh className="text-sm animate-pulse" />}
-          </button>
-
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-900/80 border border-amber-500/30 text-amber-200/90 text-xs shadow-sm">
-            <ShieldCheck className="text-amber-400 text-sm" />
-            <span className="font-medium tracking-tight">Private &amp; Grounded</span>
-          </div>
-
+          {/* SANCTUARY TOOLS */}
           <button
             onClick={() => setIsMindfulStoryModalOpen(true)}
-            className="px-2.5 py-1 rounded-full bg-gradient-to-r from-rose-950/70 via-purple-950/50 to-slate-900 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-1.5 hover:from-rose-900/80 hover:to-slate-800 transition shadow-sm cursor-pointer active:scale-95"
+            className="p-1.5 xl:px-2.5 xl:py-1 rounded-full bg-gradient-to-r from-rose-950/70 via-purple-950/50 to-slate-900 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-1.5 hover:from-rose-900/80 hover:to-slate-800 transition shadow-sm cursor-pointer active:scale-95 shrink-0"
             title="Read our healing intention story: The Oxherd Boy and the Rabbit"
           >
-            <FlowerLotus className="text-amber-300 text-sm" />
+            <FlowerLotus className="text-amber-300 text-xs shrink-0" />
             <span className="hidden xl:inline">Healing Goal</span>
           </button>
+
           <button
             onClick={() => setIsCrisisModalOpen(true)}
-            className="px-2.5 py-1 rounded-full bg-rose-950/80 hover:bg-rose-900/80 text-xs text-rose-300 border border-rose-700/60 flex items-center gap-1.5 transition shadow-sm"
+            className="p-1.5 xl:px-2.5 xl:py-1 rounded-full bg-rose-950/80 hover:bg-rose-900/80 text-xs text-rose-300 border border-rose-700/60 flex items-center gap-1.5 transition shadow-sm shrink-0"
             title="Open multi-region crisis & mental health helplines"
           >
-            <Phone className="text-rose-400" />
-            <span className="hidden lg:inline">Helplines</span>
+            <Phone className="text-rose-400 text-xs shrink-0" />
+            <span className="hidden xl:inline">Helplines</span>
           </button>
+
           <button
             onClick={() => setIsVoiceModalOpen(true)}
-            className="px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
+            className="p-1.5 xl:px-2.5 xl:py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition shrink-0"
             title="Manage 1:1 Voice Profile"
           >
-            <Microphone className="text-amber-400" />
-            <span className="hidden lg:inline">Voice: {boundVoiceName.slice(0, 14)}...</span>
+            <Microphone className="text-amber-400 text-xs shrink-0" />
+            <span className="hidden xl:inline truncate max-w-[110px]">
+              {boundVoiceName.slice(0, 12)}...
+            </span>
           </button>
+
           <button
             onClick={() => setIsBreathingModalOpen(true)}
-            className="px-2.5 py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition"
+            className="p-1.5 xl:px-2.5 xl:py-1 rounded-full bg-slate-800/80 hover:bg-slate-700/80 text-xs text-slate-300 border border-slate-700 flex items-center gap-1.5 transition shrink-0"
             title="Open 60-second breathing pause"
           >
-            <Wind className="text-cyan-400" />
-            <span className="hidden lg:inline">Take a breath</span>
+            <Wind className="text-cyan-400 text-xs shrink-0" />
+            <span className="hidden xl:inline">Take a breath</span>
           </button>
-          <div className="relative pl-1">
+
+          {/* User Profile Avatar with Session Indicator */}
+          <div className="relative pl-0.5 shrink-0">
             <button
               type="button"
               onClick={() => setIsUserProfileModalOpen(true)}
@@ -3398,6 +3476,25 @@ export default function PresenceGriefTechPage() {
                     </>
                   )}
                 </div>
+
+                {isCompressing && (
+                  <div className="mt-2 flex items-center gap-2 p-2 rounded-xl bg-slate-900/80 border border-cyan-500/30 text-cyan-300 text-xs animate-pulse">
+                    <ArrowsClockwise className="text-sm animate-spin text-cyan-400" />
+                    <span>Optimizing and compressing media in browser...</span>
+                  </div>
+                )}
+
+                {compressionInfo && compressionInfo.reductionPercent > 0 && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Sparkle className="text-cyan-400" />
+                      Pre-Upload Compression:
+                    </span>
+                    <span className="font-mono text-[11px] bg-cyan-900/60 px-2 py-0.5 rounded-full border border-cyan-500/40 text-cyan-200">
+                      {(compressionInfo.originalSize / 1024 / 1024).toFixed(1)} MB &rarr; {(compressionInfo.compressedSize / 1024).toFixed(0)} KB (-{compressionInfo.reductionPercent}%)
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Title Input */}

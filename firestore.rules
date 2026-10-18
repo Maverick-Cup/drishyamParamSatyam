@@ -265,6 +265,25 @@ service cloud.firestore {
         isValidEmail(data.emailNormalized);
     }
 
+    function isValidMediaVault(data, profileId) {
+      let allowed = [
+        'id', 'profileId', 'ownerUid', 'type', 'title', 'category',
+        'filename', 'storageUri', 'signedUrl', 'mimeType', 'sizeBytes',
+        'originalSizeBytes', 'compressed', 'reductionPercent',
+        'durationSeconds', 'checksumSha256', 'uploadedAt'
+      ];
+      let required = ['id', 'profileId', 'ownerUid', 'type', 'title', 'storageUri', 'mimeType', 'sizeBytes'];
+      let validTypes = ['image', 'audio', 'document'];
+
+      return data.keys().hasOnly(allowed) &&
+        data.keys().hasAll(required) &&
+        data.profileId == profileId &&
+        data.type in validTypes &&
+        data.title is string && data.title.size() <= 200 &&
+        data.storageUri is string && data.storageUri.size() <= 500 &&
+        data.sizeBytes is number && data.sizeBytes >= 0 && data.sizeBytes <= 30000000;
+    }
+
 
     // ===============================================================
     // Path Rules
@@ -394,6 +413,27 @@ service cloud.firestore {
           isValidMembership(request.resource.data, profileId, membershipId) &&
           request.resource.data.profileId == resource.data.profileId &&
           request.resource.data.uid == resource.data.uid;
+
+        allow delete: if isProfileOwner(profileId);
+      }
+
+      // Subcollection: Media Vault (Persisted compressed pictures & voices)
+      match /media_vault/{mediaId} {
+        allow read: if isAuthenticated() && (
+          isProfileOwner(profileId) ||
+          hasActivePermissionGrant(profileId)
+        );
+
+        allow create: if isAuthenticated() &&
+          isValidMediaVault(request.resource.data, profileId) &&
+          (isProfileOwner(profileId) || isApprovedContributor(profileId)) &&
+          request.resource.data.ownerUid == request.auth.uid;
+
+        allow update: if isAuthenticated() &&
+          isValidMediaVault(request.resource.data, profileId) &&
+          isProfileOwner(profileId) &&
+          request.resource.data.profileId == resource.data.profileId &&
+          request.resource.data.ownerUid == resource.data.ownerUid;
 
         allow delete: if isProfileOwner(profileId);
       }
