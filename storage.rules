@@ -1,0 +1,56 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isProfileOwner(profileId) {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/profiles/$(profileId)) &&
+        firestore.get(/databases/(default)/documents/profiles/$(profileId)).data.ownerUid == request.auth.uid;
+    }
+
+    function isApprovedContributor(profileId) {
+      return isAuthenticated() &&
+        firestore.exists(/databases/(default)/documents/profiles/$(profileId)/permission_grants/$(request.auth.uid)) &&
+        firestore.get(/databases/(default)/documents/profiles/$(profileId)/permission_grants/$(request.auth.uid)).data.allowPresenceView == true;
+    }
+
+    // Portraits / Avatars for Profiles
+    match /profiles/{profileId}/portraits/{fileName} {
+      // Readable by profile members or approved contributors
+      allow read: if isAuthenticated() && (isProfileOwner(profileId) || isApprovedContributor(profileId));
+
+      // Uploadable only by profile owner; max 10MB, valid image mime type
+      allow write: if isProfileOwner(profileId) &&
+        request.resource.size <= 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/(jpeg|png|webp)');
+    }
+
+    // Audio Voice Samples & Recordings
+    match /profiles/{profileId}/audio/{fileName} {
+      allow read: if isAuthenticated() && (isProfileOwner(profileId) || isApprovedContributor(profileId));
+
+      // Uploadable by owner or approved contributor; max 25MB, audio mime type
+      allow write: if (isProfileOwner(profileId) || isApprovedContributor(profileId)) &&
+        request.resource.size <= 25 * 1024 * 1024 &&
+        request.resource.contentType.matches('audio/(wav|x-wav|mpeg|mp4|webm|ogg)');
+    }
+
+    // Video Renders (MuseTalk / Talking Head generations)
+    match /profiles/{profileId}/renders/{fileName} {
+      allow read: if isAuthenticated() && (isProfileOwner(profileId) || isApprovedContributor(profileId));
+
+      // Direct write denied for clients; created server-side by backend via Firebase Admin SDK
+      allow write: if false;
+    }
+
+    // Default Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
