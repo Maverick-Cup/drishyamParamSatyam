@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://storage.googleapis.com https://prod-public-sync-user-assets.s3.us-east-1.amazonaws.com https://*.elevenlabs.io",
+              "img-src 'self' data: blob: https://storage.googleapis.com https://prod-public-sync-user-assets.s3.us-east-1.amazonaws.com https://*.elevenlabs.io https://lh3.googleusercontent.com https://images.unsplash.com",
               "media-src 'self' blob: data: https://storage.googleapis.com https://prod-public-sync-user-assets.s3.us-east-1.amazonaws.com https://*.elevenlabs.io",
               "connect-src 'self' https://generativelanguage.googleapis.com https://api.sync.so https://*.ngrok-free.app https://*.pinggy.link https://*.trycloudflare.com",
               "font-src 'self' data:",

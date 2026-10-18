@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
     const voiceId =
       requestedVoiceId && requestedVoiceId !== 'sync-rajesh-authentic-v2'
         ? requestedVoiceId
-        : envVoiceId || 'EXAVITQu4vr4xnSDxMaL';
+        : envVoiceId || '09ac157f-8b37-41c8-97a2-22a83c41568d';
 
     if (!text) {
       return NextResponse.json({ error: 'Text cannot be empty' }, { status: 400 });

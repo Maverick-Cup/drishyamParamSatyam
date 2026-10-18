@@ -309,10 +309,14 @@ export default function PresenceGriefTechPage() {
   const audioSourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const audioRafIdRef = useRef<number | null>(null);
 
-  // Persistent 1:1 Voice Profile Binding State
-  const [boundVoiceId, setBoundVoiceId] = useState<string>('sync-rajesh-authentic-v2');
-  const [boundVoiceName, setBoundVoiceName] = useState<string>('Rajesh Bade Papa (Attached Voice)');
+  // Persistent 1:1 Voice Profile Binding State (Defaults to User's Trained Male Voice: Harshit_voice)
+  const [boundVoiceId, setBoundVoiceId] = useState<string>('09ac157f-8b37-41c8-97a2-22a83c41568d');
+  const [boundVoiceName, setBoundVoiceName] = useState<string>('Harshit_voice (Trained Voice)');
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState<boolean>(false);
+  const [availableVoices, setAvailableVoices] = useState<Array<{ id: string; name: string; provider: string; previewUrl?: string; voiceId?: string }>>([]);
+  const [isLoadingVoices, setIsLoadingVoices] = useState<boolean>(false);
+  const [previewPlayingVoiceId, setPreviewPlayingVoiceId] = useState<string | null>(null);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [voiceCustomSample, setVoiceCustomSample] = useState<File | null>(null);
   const [voiceConsentGiven, setVoiceConsentGiven] = useState<boolean>(true);
   const [isCloningVoice, setIsCloningVoice] = useState<boolean>(false);
@@ -418,7 +422,7 @@ export default function PresenceGriefTechPage() {
       sender: 'user',
       author: 'Maya',
       avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
+        'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g_u" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%2306b6d4"/><stop offset="100%" stop-color="%230f766e"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g_u)"/><circle cx="50" cy="38" r="17" fill="white" opacity="0.88"/><path d="M22 84 C24 64, 40 58, 50 58 C60 58, 76 64, 78 84 Z" fill="white" opacity="0.88"/><text x="50" y="45" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="%230f172a" text-anchor="middle" dominant-baseline="central">M</text></svg>',
       text: 'Do you remember those quiet mornings we spent talking together with the family? It felt so peaceful.',
     },
     {
@@ -466,7 +470,7 @@ export default function PresenceGriefTechPage() {
     email: 'hpshahi12@gmail.com',
     relationship: 'Granddaughter & Family Owner',
     avatarUrl:
-      'https://lh3.googleusercontent.com/aida-public/AB6AXuAkM9-qFCcd6h1qbdIM3Uaaj9G2bxYFGZJ-HjNC-BgIiIJchAvfQXV8k3n2_grb8xPKhB1u78Z8gMpe2ifh7AG4fOhu8KwQsyoeS5Z2XDphOqAlVOl1LQX3GtIOFTchjKqUUssFoQcPz1LwklcurbPRP_-OiqJ2Vmg6V89Lmx3K0-0LuJlmoM70g_FTt5dl9b1st9tStS9yOG7OmkCoViQm4D5PpTmxQN4wmh36A0Q',
+      'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g_u" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="%2306b6d4"/><stop offset="100%" stop-color="%230f766e"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g_u)"/><circle cx="50" cy="38" r="17" fill="white" opacity="0.88"/><path d="M22 84 C24 64, 40 58, 50 58 C60 58, 76 64, 78 84 Z" fill="white" opacity="0.88"/><text x="50" y="45" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="%230f172a" text-anchor="middle" dominant-baseline="central">M</text></svg>',
   });
 
   const handleSaveUserProfile = (updated: ActiveUserProfile) => {
@@ -624,6 +628,13 @@ export default function PresenceGriefTechPage() {
         } catch {}
       }
 
+      const savedVoiceId = localStorage.getItem('paramsathya_cloned_voice_id');
+      const savedVoiceName = localStorage.getItem('paramsathya_cloned_voice_name');
+      if (savedVoiceId) {
+        setBoundVoiceId(savedVoiceId);
+        if (savedVoiceName) setBoundVoiceName(savedVoiceName);
+      }
+
       const savedIndicConfig = localStorage.getItem('paramsathya_indic_config');
       if (savedIndicConfig) {
         try {
@@ -659,6 +670,53 @@ export default function PresenceGriefTechPage() {
       };
     }
   }, []);
+
+  // Fetch pre-trained voice list when voice profile modal is opened
+  useEffect(() => {
+    if (isVoiceModalOpen && availableVoices.length === 0) {
+      setIsLoadingVoices(true);
+      fetch('/api/voice/clone')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && Array.isArray(data.voices)) {
+            setAvailableVoices(data.voices);
+          }
+        })
+        .catch((e) => console.warn('Failed to load voice list:', e))
+        .finally(() => setIsLoadingVoices(false));
+    }
+  }, [isVoiceModalOpen, availableVoices.length]);
+
+  const handleSelectPretrainedVoice = (vId: string, vName: string) => {
+    setBoundVoiceId(vId);
+    setBoundVoiceName(`${vName} (Linked Voice)`);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('paramsathya_cloned_voice_id', vId);
+      localStorage.setItem('paramsathya_cloned_voice_name', `${vName} (Linked Voice)`);
+    }
+    setVoiceBindingSuccess(`Voice "${vName}" successfully bound!`);
+    setTimeout(() => setVoiceBindingSuccess(''), 3000);
+  };
+
+  const handleTogglePreviewVoice = (vId: string, previewUrl?: string) => {
+    if (!previewUrl) return;
+    if (previewPlayingVoiceId === vId) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      setPreviewPlayingVoiceId(null);
+      return;
+    }
+    if (!previewAudioRef.current) {
+      previewAudioRef.current = new Audio();
+    }
+    const audio = previewAudioRef.current;
+    audio.src = previewUrl;
+    audio.play().catch(() => {});
+    setPreviewPlayingVoiceId(vId);
+    audio.onended = () => setPreviewPlayingVoiceId(null);
+    audio.onerror = () => setPreviewPlayingVoiceId(null);
+  };
 
   // Sync ambient audio volume & mute state
   useEffect(() => {
@@ -915,9 +973,8 @@ export default function PresenceGriefTechPage() {
     const newMsg: ChatMessage = {
       id: Date.now().toString(),
       sender: 'user',
-      author: 'Maya',
-      avatarUrl:
-        'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
+      author: userProfile.displayName || 'Maya',
+      avatarUrl: userProfile.avatarUrl,
       text: `Uploaded memory artifact: "${file.name}"`,
       imageUrl: isImage ? fileUrl : undefined,
       audioUrl: isAudio ? fileUrl : undefined,
@@ -1366,9 +1423,17 @@ export default function PresenceGriefTechPage() {
         voices[0];
     }
 
-    if (preferredVoice) utterance.voice = preferredVoice;
-    // Deepen pitch to 0.88 and gentle rate of 0.92 for warm, dignified elder presence
-    utterance.pitch = 0.88;
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
+      // CRITICAL AUDIO SILENCE RESOLUTION (Windows SAPI / Chrome):
+      // When preferredVoice is selected (e.g. Microsoft David Desktop en-US), utterance.lang MUST match preferredVoice.lang!
+      // If utterance.lang is 'en-IN' while the selected voice is 'en-US', Windows/Chrome fails silently!
+      if (preferredVoice.lang) {
+        utterance.lang = preferredVoice.lang;
+      }
+    }
+    // Deepen pitch to 0.86 and gentle rate of 0.92 for warm, dignified elder presence
+    utterance.pitch = 0.86;
     utterance.rate = 0.92;
 
     utterance.onstart = () => {
@@ -1381,15 +1446,28 @@ export default function PresenceGriefTechPage() {
       setMouthScale(0.75 + Math.random() * 0.25);
     };
 
+    // STRICT ANTI-LOOP PROTECTION: onend and onerror strictly reset state and DO NOT trigger repeat speech
     utterance.onend = () => {
       stopMouthAnimation();
+      setIsSpeaking(false);
+      setIsPlaying(false);
     };
 
     utterance.onerror = () => {
       stopMouthAnimation();
+      setIsSpeaking(false);
+      setIsPlaying(false);
     };
 
-    window.speechSynthesis.speak(utterance);
+    // 40ms tick prevents Chrome cancel() race condition
+    setTimeout(() => {
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (e) {
+        console.warn('Speech synthesis speak invocation error:', e);
+        stopMouthAnimation();
+      }
+    }, 40);
   };
 
   // Unified Attached Voice Playback for Chat Messages & AI Replies (AI4Bharat IndicTTS + Dynamic Conversation Pipeline)
@@ -3605,31 +3683,125 @@ export default function PresenceGriefTechPage() {
               </div>
             )}
 
-            {/* Option A: Enter / Select Pre-Cloned Voice ID */}
-            <div className="space-y-2 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800">
-              <span className="text-xs font-semibold text-slate-300">Option A: Link Existing Voice ID / Sample</span>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter Sync Voice ID (e.g. EXAVITQu4vr4xnSDxMaL)..."
-                  defaultValue={boundVoiceId}
-                  id="directVoiceInput"
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
-                />
-                <button
-                  onClick={async () => {
-                    const inputEl = document.getElementById('directVoiceInput') as HTMLInputElement;
-                    const val = inputEl?.value?.trim();
-                    if (!val) return;
-                    setBoundVoiceId(val);
-                    setBoundVoiceName(`${companionPersonName} (Linked Voice)`);
-                    setVoiceBindingSuccess(`Voice ID successfully bound to ${companionPersonName}!`);
-                    setTimeout(() => setVoiceBindingSuccess(''), 3000);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-medium transition"
-                >
-                  Bind
-                </button>
+            {/* Option A: Select From Pre-Trained & Cloned Voices (or enter custom ID) */}
+            <div className="space-y-3 p-3.5 rounded-2xl bg-slate-900/50 border border-slate-800">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-300">Option A: Select From Pre-Trained Voices</span>
+                <span className="text-[10px] text-cyan-400 font-mono">
+                  {isLoadingVoices ? 'Loading voices...' : `${availableVoices.length || 21} available`}
+                </span>
+              </div>
+
+              {/* Scrollable Pre-Trained Voice List */}
+              <div className="max-h-52 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                {isLoadingVoices && availableVoices.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400 animate-pulse">
+                    Fetching trained and pre-set voice profiles...
+                  </div>
+                ) : (
+                  (availableVoices.length > 0
+                    ? availableVoices
+                    : [
+                        { id: '09ac157f-8b37-41c8-97a2-22a83c41568d', name: 'Harshit_voice', provider: 'elevenlabs' },
+                        { id: 'CwhRBWXzGAHq8TQ4Fs17', name: 'Roger - Laid-Back, Casual, Resonant', provider: 'elevenlabs' },
+                        { id: 'IKne3meq5aSn9XLyUdCD', name: 'Charlie - Deep, Confident, Energetic', provider: 'elevenlabs' },
+                        { id: 'JBFqnCBsd6RMkjVDRZzb', name: 'George - Warm, Captivating Storyteller', provider: 'elevenlabs' },
+                        { id: 'N2lVS1w4EtoT3dr4eOWO', name: 'Callum - Husky Trickster', provider: 'elevenlabs' },
+                        { id: 'SOYHLrjzK2X1ezoPC6cr', name: 'Harry - Fierce Warrior', provider: 'elevenlabs' },
+                        { id: 'TX3LPaxmHKxFdv7VOQHJ', name: 'Liam - Energetic', provider: 'elevenlabs' },
+                        { id: 'EXAVITQu4vr4xnSDxMaL', name: 'Sarah - Mature, Reassuring', provider: 'elevenlabs' },
+                      ]
+                  ).map((v) => {
+                    const vId = v.id || v.voiceId || '';
+                    const isSelected = boundVoiceId === vId || (v.id === '09ac157f-8b37-41c8-97a2-22a83c41568d' && boundVoiceId.includes('09ac157f'));
+                    const isCustomTrained = v.name.toLowerCase().includes('harshit');
+
+                    return (
+                      <div
+                        key={vId}
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition ${
+                          isSelected
+                            ? 'bg-cyan-950/50 border-cyan-500/60 ring-1 ring-cyan-500/40'
+                            : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-medium text-slate-200 truncate">
+                              {v.name}
+                            </span>
+                            {isCustomTrained && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 font-mono">
+                                My Trained Male Voice
+                              </span>
+                            )}
+                            {isSelected && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono">
+                                Active
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 font-mono truncate">{vId}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {v.previewUrl && (
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePreviewVoice(vId, v.previewUrl)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-cyan-300 text-xs transition"
+                              title={previewPlayingVoiceId === vId ? 'Stop preview' : 'Listen sample'}
+                              aria-label="Preview voice sample"
+                            >
+                              {previewPlayingVoiceId === vId ? (
+                                <Pause className="text-cyan-400 text-xs" weight="fill" />
+                              ) : (
+                                <Play className="text-xs" weight="fill" />
+                              )}
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleSelectPretrainedVoice(vId, v.name)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                              isSelected
+                                ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 cursor-default'
+                                : 'bg-cyan-600 hover:bg-cyan-500 text-white'
+                            }`}
+                          >
+                            {isSelected ? 'Bound' : 'Select'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Direct Voice ID Custom Override */}
+              <div className="pt-2 border-t border-white/5 space-y-1.5">
+                <span className="text-[11px] text-slate-400">Or enter a custom Voice ID:</span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter Custom Voice ID..."
+                    defaultValue={boundVoiceId}
+                    id="directVoiceInput"
+                    className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const inputEl = document.getElementById('directVoiceInput') as HTMLInputElement;
+                      const val = inputEl?.value?.trim();
+                      if (!val) return;
+                      handleSelectPretrainedVoice(val, `${companionPersonName} (Custom)`);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700 transition"
+                  >
+                    Bind
+                  </button>
+                </div>
               </div>
             </div>
 

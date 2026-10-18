@@ -27,27 +27,30 @@ interface UserProfileModalProps {
   onSaveProfile: (updatedProfile: ActiveUserProfile) => void;
 }
 
+const createAvatarSvg = (bgColor1: string, bgColor2: string, letter: string) =>
+  `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g_${letter}" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${encodeURIComponent(bgColor1)}"/><stop offset="100%" stop-color="${encodeURIComponent(bgColor2)}"/></linearGradient></defs><rect width="100" height="100" rx="50" fill="url(%23g_${letter})"/><circle cx="50" cy="38" r="17" fill="white" opacity="0.88"/><path d="M22 84 C24 64, 40 58, 50 58 C60 58, 76 64, 78 84 Z" fill="white" opacity="0.88"/><text x="50" y="45" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="%230f172a" text-anchor="middle" dominant-baseline="central">${letter}</text></svg>`;
+
 // Preset photo options representing warm, cross-generational family members
 const PRESET_AVATARS: Array<{ id: string; label: string; url: string }> = [
   {
     id: 'preset-maya-1',
-    label: 'Maya (Default)',
-    url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAkM9-qFCcd6h1qbdIM3Uaaj9G2bxYFGZJ-HjNC-BgIiIJchAvfQXV8k3n2_grb8xPKhB1u78Z8gMpe2ifh7AG4fOhu8KwQsyoeS5Z2XDphOqAlVOl1LQX3GtIOFTchjKqUUssFoQcPz1LwklcurbPRP_-OiqJ2Vmg6V89Lmx3K0-0LuJlmoM70g_FTt5dl9b1st9tStS9yOG7OmkCoViQm4D5PpTmxQN4wmh36A0Q',
+    label: 'Maya',
+    url: createAvatarSvg('#06b6d4', '#0f766e', 'M'),
   },
   {
     id: 'preset-family-daughter',
-    label: 'Daughter / Granddaughter',
-    url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuC6fbVph3tU_Lnf2CmAey-RpAGVQcc3iWhsolfT8TojYEo8Jj0EXlqJjnejbsR7-4IdE_Kst-5KagZslhbd7d1JdX9eM88Zgvn2XjsuDr9_1lEE4EDkhacBCI93Q0eODvtNR4P1iPQmclz3SCu7s1-m20AAVym-WPcIjx8pgZiSNngPGA3zO9GAlrB__frJbb9e4Bu1X-Y5zS1XW0c7ap54mmGw-ODLjQ1fKeexk9I',
+    label: 'Daughter',
+    url: createAvatarSvg('#f43f5e', '#be123c', 'D'),
   },
   {
     id: 'preset-family-son',
-    label: 'Son / Grandson',
-    url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&auto=format&fit=crop&q=80',
+    label: 'Son',
+    url: createAvatarSvg('#3b82f6', '#1d4ed8', 'S'),
   },
   {
     id: 'preset-elder-kin',
-    label: 'Elder Kin',
-    url: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop&q=80',
+    label: 'Elder',
+    url: createAvatarSvg('#10b981', '#047857', 'E'),
   },
 ];
 
@@ -144,7 +147,7 @@ export function UserProfileModal({
                 <div className="w-20 h-20 rounded-2xl overflow-hidden ring-2 ring-cyan-500/50 bg-slate-950 shadow-md">
                   <img
                     src={avatarUrl}
-                    alt={displayName}
+                    alt=""
                     className="w-full h-full object-cover"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = PRESET_AVATARS[0].url;
@@ -209,11 +212,11 @@ export function UserProfileModal({
                     >
                       <img
                         src={preset.url}
-                        alt={preset.label}
-                        className="w-10 h-10 rounded-full object-cover"
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover shadow-sm shrink-0"
                       />
-                      <span className="text-[10px] text-slate-300 truncate w-full">
-                        {preset.label.split(' ')[0]}
+                      <span className="text-[11px] font-medium text-slate-300 truncate w-full">
+                        {preset.label}
                       </span>
                     </button>
                   );

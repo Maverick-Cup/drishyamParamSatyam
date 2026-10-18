@@ -75,6 +75,10 @@ export class SyncLabsService {
         if (data.url || data.synthesizedAudioUrl) {
           return data.url || data.synthesizedAudioUrl;
         }
+      } else if (res.status === 402 || res.status === 403 || res.status === 429) {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn(`[SyncLabs] TTS generation limitation (${res.status}):`, errJson.message || errJson.errorCode);
+        return null;
       }
     } catch (syncErr) {
       console.warn('Sync synchronous TTS failed, trying async job endpoint:', syncErr);
