@@ -78,7 +78,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-3 sm:p-5 select-none relative z-10 max-w-4xl mx-auto w-full h-full min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col justify-between p-3 sm:p-5 relative z-10 max-w-4xl mx-auto w-full h-full min-h-0 overflow-hidden">
       {/* Top Navigation & Direct Skip Bar */}
       <header className="flex items-center justify-between py-1.5 sm:py-2 px-1 shrink-0">
         <div className="flex items-center gap-2.5">

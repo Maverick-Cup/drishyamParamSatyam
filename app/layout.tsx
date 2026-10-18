@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col relative">
+      <body className="h-full text-slate-200 antialiased font-sans overflow-hidden flex flex-col relative">
         <SurrealBackdrop />
         <div className="relative z-10 flex-1 flex flex-col h-full overflow-hidden">
           {children}

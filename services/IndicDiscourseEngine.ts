@@ -90,6 +90,39 @@ export const INDIC_DIALECT_PROFILES: Record<string, DialectConversationalProfile
     blessingPhrases: ['நன்றாக இருங்கள்', 'என் ஆசீர்வாதம் எப்போதும் உங்களுடன்'],
     bcp47Tag: 'ta-IN',
   },
+  te: {
+    code: 'te',
+    name: 'Telugu',
+    spontaneousPrefixes: {
+      respectful: ['అవును బాబూ,', 'వినండి,', 'చూడండి,', 'నేను అర్థం చేసుకుంటున్నాను,'],
+      familiar: ['అవును కన్నా,', 'వినరా,', 'చూడు,', 'సరే,'],
+    },
+    reflectiveParticles: ['అండి', 'కదా', 'గా'],
+    blessingPhrases: ['సంతోషంగా ఉండండి', 'నా ఆశీస్సులు ఎల్లప్పుడూ మీతో ఉంటాయి'],
+    bcp47Tag: 'te-IN',
+  },
+  mr: {
+    code: 'mr',
+    name: 'Marathi',
+    spontaneousPrefixes: {
+      respectful: ['हो बाळा,', 'ऐका ना,', 'बघा,', 'मला समजतंय,'],
+      familiar: ['हो रे,', 'ऐक,', 'बघ,', 'अरे,'],
+    },
+    reflectiveParticles: ['ना', 'हो', 'बरं'],
+    blessingPhrases: ['आनंदी राहा', 'माझे आशीर्वाद सदैव तुमच्या पाठीशी आहेत'],
+    bcp47Tag: 'mr-IN',
+  },
+  gu: {
+    code: 'gu',
+    name: 'Gujarati',
+    spontaneousPrefixes: {
+      respectful: ['હા બેટા,', 'સાંભળો,', 'જુઓ,', 'હું સમજી શકું છું,'],
+      familiar: ['હા વ્હાલા,', 'સાંભળ,', 'જો,', 'અરે,'],
+    },
+    reflectiveParticles: ['ને', 'હો', 'તો'],
+    blessingPhrases: ['હંમેશા ખુશ રહો', 'મારા આશીર્વાદ સદા તમારી સાથે છે'],
+    bcp47Tag: 'gu-IN',
+  },
 };
 
 export class IndicDiscourseEngine {

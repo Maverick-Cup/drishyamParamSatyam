@@ -82,6 +82,7 @@ import { buildMemoryGraph } from '@/services/memoryGraphBuilder';
 import InteractiveMindMap from '@/components/InteractiveMindMap';
 import { UserProfileModal, ActiveUserProfile } from '@/components/UserProfileModal';
 import { IndicCulturalModal, UnifiedIndicConfig } from '@/components/IndicCulturalModal';
+import { INDIC_LANGUAGES } from '@/config/indicLanguages';
 import { IndicDiscourseEngine } from '@/services/IndicDiscourseEngine';
 import MindfulExpectationModal from '@/components/MindfulExpectationModal';
 
@@ -322,6 +323,49 @@ export default function PresenceGriefTechPage() {
   const [isMindfulStoryModalOpen, setIsMindfulStoryModalOpen] = useState<boolean>(false);
   const [selectedCrisisRegion, setSelectedCrisisRegion] = useState<string>('IN');
   const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
+
+  // Remembrance Text Clipboard Copy and Vault Bookmark State
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [bookmarkedMessageIds, setBookmarkedMessageIds] = useState<Set<string>>(new Set());
+
+  const handleCopyMessage = async (msgId: string, textToCopy: string) => {
+    try {
+      const clean = textToCopy.replace(/^"|"$/g, '').trim();
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(clean);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = clean;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedMessageId(msgId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.warn('Failed to copy text:', err);
+    }
+  };
+
+  const handleBookmarkMessage = (msgId: string, text: string) => {
+    setBookmarkedMessageIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+      } else {
+        next.add(msgId);
+        try {
+          const existing = JSON.parse(localStorage.getItem('paramsathya_vault_bookmarks') || '[]');
+          existing.push({ id: msgId, text, savedAt: new Date().toISOString() });
+          localStorage.setItem('paramsathya_vault_bookmarks', JSON.stringify(existing));
+        } catch {}
+      }
+      return next;
+    });
+  };
 
   // Sync 2 Pro Living Video Synthesis Integration State
   const [museTalkVideoUrl, setMuseTalkVideoUrl] = useState<string | null>('/sample_reference.mp4');
@@ -1804,7 +1848,7 @@ export default function PresenceGriefTechPage() {
   };
 
   return (
-    <div className="h-full text-slate-200 antialiased font-sans select-none overflow-hidden flex flex-col bg-transparent">
+    <div className="h-full text-slate-200 antialiased font-sans overflow-hidden flex flex-col bg-transparent">
       {/* MAIN HEADER */}
       {/* COMPACT PHONE TOP APP BAR (< 768px) */}
       <MobileAppBar
@@ -2877,8 +2921,8 @@ export default function PresenceGriefTechPage() {
                 {conversations.map((msg) =>
                   msg.sender === 'user' ? (
                     <div key={msg.id} className="flex items-start gap-3 justify-end">
-                      <div className="bg-cyan-950/40 border border-cyan-800/40 rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-md text-sm text-slate-200 space-y-2">
-                        <p>{msg.text}</p>
+                      <div className="bg-cyan-950/40 border border-cyan-800/40 rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-md text-sm text-slate-200 space-y-2 select-text cursor-text">
+                        <p className="select-text cursor-text whitespace-pre-wrap">{msg.text}</p>
                         {msg.imageUrl && (
                           <div className="mt-2 rounded-xl overflow-hidden border border-cyan-700/40 max-w-xs">
                             <img src={msg.imageUrl} alt="Uploaded attachment" className="w-full h-auto object-cover" />
@@ -2907,8 +2951,8 @@ export default function PresenceGriefTechPage() {
                           src={activePortraitUrl || msg.avatarUrl}
                         />
                       </div>
-                      <div className="glass-panel rounded-2xl rounded-tl-sm p-4 max-w-xl shadow-xl space-y-2 border-slate-700/60">
-                        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-white/5">
+                      <div className="glass-panel rounded-2xl rounded-tl-sm p-4 max-w-xl shadow-xl space-y-2 border-slate-700/60 select-text">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400 pb-1 border-b border-white/5 select-none">
                           <span className="flex items-center gap-1 text-slate-300 font-medium">
                             <Sparkle className="text-amber-400" /> {companionPersonName}
                           </span>
@@ -2916,8 +2960,8 @@ export default function PresenceGriefTechPage() {
                             {msg.faithfulnessScore || 'Faithfulness: 100% verified'}
                           </span>
                         </div>
-                        <p className="text-sm sm:text-[15px] leading-relaxed text-slate-100 font-sans">{msg.text}</p>
-                        <div className="pt-2 flex items-center justify-between">
+                        <p className="text-sm sm:text-[15px] leading-relaxed text-slate-100 font-sans select-text cursor-text whitespace-pre-wrap">{msg.text}</p>
+                        <div className="pt-2 flex items-center justify-between select-none">
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => {
@@ -2947,11 +2991,34 @@ export default function PresenceGriefTechPage() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-xs">
-                            <button className="text-slate-400 hover:text-slate-200" title="Copy remembrance">
-                              <Copy />
+                            <button
+                              type="button"
+                              onClick={() => handleCopyMessage(msg.id, msg.text)}
+                              className="text-slate-400 hover:text-cyan-300 transition flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-white/5 active:scale-95"
+                              title={copiedMessageId === msg.id ? "Copied remembrance!" : "Copy remembrance"}
+                              aria-label="Copy remembrance message"
+                            >
+                              {copiedMessageId === msg.id ? (
+                                <>
+                                  <Check className="text-emerald-400 text-xs" />
+                                  <span className="text-[10px] text-emerald-400 font-mono">Copied</span>
+                                </>
+                              ) : (
+                                <Copy className="text-xs" />
+                              )}
                             </button>
-                            <button className="text-slate-400 hover:text-amber-300" title="Bookmark in vault">
-                              <Bookmark />
+                            <button
+                              type="button"
+                              onClick={() => handleBookmarkMessage(msg.id, msg.text)}
+                              className={`transition flex items-center gap-1 cursor-pointer p-1 rounded hover:bg-white/5 active:scale-95 ${
+                                bookmarkedMessageIds.has(msg.id)
+                                  ? 'text-amber-400'
+                                  : 'text-slate-400 hover:text-amber-300'
+                              }`}
+                              title={bookmarkedMessageIds.has(msg.id) ? "Saved in vault" : "Bookmark in vault"}
+                              aria-label="Bookmark message in vault"
+                            >
+                              <Bookmark className="text-xs" weight={bookmarkedMessageIds.has(msg.id) ? "fill" : "regular"} />
                             </button>
                           </div>
                         </div>
@@ -3060,12 +3127,11 @@ export default function PresenceGriefTechPage() {
                           }}
                           className="bg-transparent text-amber-300 text-[10px] font-mono focus:outline-none cursor-pointer"
                         >
-                          <option value="bho" className="bg-slate-900 text-slate-200">Bhojpuri (भोजपुरी)</option>
-                          <option value="hi" className="bg-slate-900 text-slate-200">Hindi (हिन्दी)</option>
-                          <option value="mai" className="bg-slate-900 text-slate-200">Maithili (मैथिली)</option>
-                          <option value="awa" className="bg-slate-900 text-slate-200">Awadhi (अवधी)</option>
-                          <option value="bn" className="bg-slate-900 text-slate-200">Bengali (বাংলা)</option>
-                          <option value="ta" className="bg-slate-900 text-slate-200">Tamil (தமிழ்)</option>
+                          {INDIC_LANGUAGES.slice(0, 9).map((lang) => (
+                            <option key={lang.code} value={lang.code} className="bg-slate-900 text-slate-200">
+                              {lang.name} ({lang.nativeName})
+                            </option>
+                          ))}
                         </select>
                         <button
                           type="button"

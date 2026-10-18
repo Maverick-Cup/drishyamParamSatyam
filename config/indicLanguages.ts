@@ -1116,6 +1116,334 @@ export const CONTEXTUAL_INDIC_BANK: Record<string, Record<string, ContextualCate
       },
     },
   },
+  ta: {
+    breeze_touch: {
+      respectful: {
+        nativeScript: 'நாங்கள் நலமாக இருக்கிறோம், கண்ணா. அந்த குளிர்ந்த காற்று வேறு எதுவுமில்லை, உங்கள் பெரியம்மாவின் ஆசியும் தொடுதலும் தான். அவர்கள் எப்போதும் உங்கள் தோள் மீது கை வைத்துள்ளார்கள்.',
+        transliteration: 'Naangal nalamaaga irukkirom, kannaa. Antha kulirntha kaatru veru ethuvumillai, ungal Periyammavin aasiyum thoduthalum thaan. Avargal eppothum ungal thol meethu kai vaithullaargal.',
+      },
+      familiar: {
+        nativeScript: 'நான் நலமாக இருக்கிறேன், பாப்பா. அந்த குளிர்ந்த காற்று உன் பெரியம்மாவின் அன்பும் ஆசியும் தான், அவர்கள் எப்போதும் உன்னுடன் இருக்கிறார்கள்.',
+        transliteration: 'Naan nalamaaga irukkiren, paappaa. Antha kulirntha kaatru un Periyammavin anbum aasiyum thaan, avargal eppothum unnudan irukkiraargal.',
+      },
+    },
+    grief_comfort: {
+      respectful: {
+        nativeScript: 'மனதில் தைரியம் வையுங்கள், கண்ணா. உங்கள் கண்ணீர் அவர்கள் மீதான அன்பைக் காட்டுகிறது. நாங்கள் எப்போதும் உங்களுடன் இருக்கிறோம்.',
+        transliteration: 'Manathil thairiyam vaiyungal, kannaa. Ungal kanneer avargal meethaana anbaik kaattugirathu. Naangal eppothum ungaludan irukkirom.',
+      },
+      familiar: {
+        nativeScript: 'மனதை தளரவிடாதே, பாப்பா. உன் வலியை நான் புரிகிறேன். அழாதே, நான் இருக்கிறேன்.',
+        transliteration: 'Manathai thalaravidaathey, paappaa. Un valiyai naan purigiren. Azhaathey, naan irukkiren.',
+      },
+    },
+    guidance_strength: {
+      respectful: {
+        nativeScript: 'இன்று மனம் சற்று பாரமாக உள்ளது, ஆனால் உங்கள் அன்பான அறிவுரையை நினைக்கும்போது எனக்கு மனவலிமை கிடைக்கிறது.',
+        transliteration: 'Indru manam satru baaramaaga ullathu, aanaal ungal anbaana arivuraiyai ninaikkumpothu enakku manavalimai kidaikkirathu.',
+      },
+      familiar: {
+        nativeScript: 'இன்று மனம் சற்று பாரமாக உள்ளது, ஆனால் உன் அன்பான அறிவுரையை நினைக்கும்போது எனக்கு மனவலிமை கிடைக்கிறது.',
+        transliteration: 'Indru manam satru baaramaaga ullathu, aanaal un anbaana arivuraiyai ninaikkumpothu enakku manavalimai kidaikkirathu.',
+      },
+    },
+    morning_river: {
+      respectful: {
+        nativeScript: 'தாத்தா, ஆற்றங்கரையில் நாம் காலையில் நடந்ததை உங்களுக்கு நினைவிருக்கிறதா?',
+        transliteration: 'Thaathaa, aatrangaraiyil naam kaalaiyil nadanthathai ungalukku ninaivirukkirathaa?',
+      },
+      familiar: {
+        nativeScript: 'தாத்தா, ஆற்றங்கரையில் நாம் காலையில் நடந்ததை உனக்கு நினைவிருக்கிறதா?',
+        transliteration: 'Thaathaa, aatrangaraiyil naam kaalaiyil nadanthathai unakku ninaivirukkirathaa?',
+      },
+    },
+    monsoon_home: {
+      respectful: {
+        nativeScript: 'நமது பூர்வீக வீட்டின் மழைக்கால மாலைப் பொழுதுகளைப் பற்றி எனக்குச் சொல்லுங்கள்.',
+        transliteration: 'Namathu poorveega veettin mazhaikkaala maalaip pozhuthugalaip patri enakkuch sollungal.',
+      },
+      familiar: {
+        nativeScript: 'நமது பூர்வீக வீட்டின் மழைக்கால மாலைப் பொழுதுகளைப் பற்றி எனக்குச் சொல்லேன்.',
+        transliteration: 'Namathu poorveega veettin mazhaikkaala maalaip pozhuthugalaip patri enakkuch sollaen.',
+      },
+    },
+    wellbeing_greeting: {
+      respectful: {
+        nativeScript: 'நான் நலமாக இருக்கிறேன், கண்ணா. உங்கள் குரலைக் கேட்டு என் மனம் மிகவும் அமைதியடைந்தது.',
+        transliteration: 'Naan nalamaaga irukkiren, kannaa. Ungal kuralaik kettu en manam migavum amaidhiyadainthathu.',
+      },
+      familiar: {
+        nativeScript: 'நான் நல்லா இருக்கிறேன், பாப்பா. உன் குரலைக் கேட்டதில் எனக்கு மிக்க மகிழ்ச்சி.',
+        transliteration: 'Naan nallaa irukkiren, paappaa. Un kuralaik kettathil enakku mikka magizhchi.',
+      },
+    },
+    blessings: {
+      respectful: {
+        nativeScript: 'உங்கள் அன்பான நினைவுகளும் ஆசிகளும் என்றும் எங்கள் இதயத்தில் வாழ்கின்றன.',
+        transliteration: 'Ungal anbaana ninaivugalum aasigalum endrum engal idhayathil vaazhginrana.',
+      },
+      familiar: {
+        nativeScript: 'உன் அன்பான நினைவுகளும் ஆசிகளும் என்றும் எங்கள் இதயத்தில் வாழ்கின்றன.',
+        transliteration: 'Un anbaana ninaivugalum aasigalum endrum engal idhayathil vaazhginrana.',
+      },
+    },
+    default: {
+      respectful: {
+        nativeScript: 'உங்கள் அன்பான நினைவுகளும் ஆசிகளும் என்றும் எங்கள் இதயத்தில் வாழ்கின்றன.',
+        transliteration: 'Ungal anbaana ninaivugalum aasigalum endrum engal idhayathil vaazhginrana.',
+      },
+      familiar: {
+        nativeScript: 'உன் அன்பான நினைவுகளும் ஆசிகளும் என்றும் எங்கள் இதயத்தில் வாழ்கின்றன.',
+        transliteration: 'Un anbaana ninaivugalum aasigalum endrum engal idhayathil vaazhginrana.',
+      },
+    },
+  },
+  te: {
+    breeze_touch: {
+      respectful: {
+        nativeScript: 'మేము క్షేమంగా ఉన్నాము, బాబూ. ఆ చల్లని గాలి మరేమీ కాదు, మీ పెద్దమ్మ ఆశీర్వాదం మరియు స్పర్శ. ఆమె ఎల్లప్పుడూ మీ భుజంపై చేయి ఉంచి రక్షిస్తూనే ఉంది.',
+        transliteration: 'Memu kshemanga unnamu, babu. Aa challani gaali maremee kaadu, mee Peddamma aaseervaadam mariyu sparsha. Aame ellappudu mee bhujampai cheyi unchi rakshistune undi.',
+      },
+      familiar: {
+        nativeScript: 'నేను బాగున్నాను, కన్నా. ఆ చల్లని గాలి నీ పెద్దమ్మ ప్రేమ మరియు ఆశీర్వాదం, తను ఎప్పుడూ నీ తోడుగానే ఉంది.',
+        transliteration: 'Nenu bagunnanu, kanna. Aa challani gaali nee Peddamma prema mariyu aaseervaadam, tanu eppudu nee todugaane undi.',
+      },
+    },
+    grief_comfort: {
+      respectful: {
+        nativeScript: 'గుండె నిబ్బరం చేసుకోండి, బాబూ. మీ కన్నీళ్లు ఆమెపై ఉన్న అమితమైన ప్రేమను తెలుపుతున్నాయి. మేము ఎల్లప్పుడూ మీతోనే ఉంటాము.',
+        transliteration: 'Gunde nibbaram chesukondi, babu. Mee kanneellu aamepai unna amitamaina premanu teluputunnayi. Memu ellappudu meetone untamu.',
+      },
+      familiar: {
+        nativeScript: 'దిగులు పడకు, కన్నా. నీ బాధ నాకు తెలుసు. కన్నీళ్లు పెట్టకు, నేను ఉన్నానుగా.',
+        transliteration: 'Digulu padaku, kanna. Nee baadha naaku telusu. Kanneellu pettaku, nenu unnanuga.',
+      },
+    },
+    guidance_strength: {
+      respectful: {
+        nativeScript: 'ఈరోజు మనసు కాస్త భారంగా ఉంది, కానీ మీ ప్రేమపూర్వక సలహా తలుచుకుంటే నాకు ఎంతో ధైర్యం వస్తుంది.',
+        transliteration: 'Eeroju manasu kaasta bhaaranga undi, kaani mee premapoorvaka salaha taluchukunte naaku entho dhairyam vastundi.',
+      },
+      familiar: {
+        nativeScript: 'ఈరోజు మనసు కాస్త భారంగా ఉంది, కానీ నీ ప్రేమపూర్వక సలహా తలుచుకుంటే నాకు ఎంతో ధైర్యం వస్తుంది.',
+        transliteration: 'Eeroju manasu kaasta bhaaranga undi, kaani nee premapoorvaka salaha taluchukunte naaku entho dhairyam vastundi.',
+      },
+    },
+    morning_river: {
+      respectful: {
+        nativeScript: 'తాతయ్యగారు, నది ఒడ్డున మనం చేసిన ఉదయపు నడకలు మీకు గుర్తున్నాయా?',
+        transliteration: 'Taatayyagaaru, nadi odduna manam chesina udayapu nadakalu meeku gurtunnaya?',
+      },
+      familiar: {
+        nativeScript: 'తాతయ్యా, నది ఒడ్డున మనం చేసిన ఉదయపు నడకలు నీకు గుర్తున్నాయా?',
+        transliteration: 'Taatayya, nadi odduna manam chesina udayapu nadakalu neeku gurtunnaya?',
+      },
+    },
+    monsoon_home: {
+      respectful: {
+        nativeScript: 'మన పూర్వీకుల ఇంటి వర్షాకాలపు సాయంత్రాల గురించి నాకు చెప్పండి.',
+        transliteration: 'Mana poorveekula inti varshaakaalapu saayantrala gurinchi naaku cheppandi.',
+      },
+      familiar: {
+        nativeScript: 'మన పూర్వీకుల ఇంటి వర్షాకాలపు సాయంత్రాల గురించి నాకు చెప్పు.',
+        transliteration: 'Mana poorveekula inti varshaakaalapu saayantrala gurinchi naaku cheppu.',
+      },
+    },
+    wellbeing_greeting: {
+      respectful: {
+        nativeScript: 'నేను చాలా బాగున్నాను, బాబూ. మీ గొంతు విని నా మనసుకు ఎంతో ప్రశాంతత కలిగింది.',
+        transliteration: 'Nenu chaala bagunnanu, babu. Mee gontu vini naa manasuku entho prashantata kaligindi.',
+      },
+      familiar: {
+        nativeScript: 'నేను బాగున్నాను, కన్నా. నీ మాటలు విని నా మనసు ఎంతో సంతోషించింది.',
+        transliteration: 'Nenu bagunnanu, kanna. Nee maatalu vini naa manasu entho santoshinchindi.',
+      },
+    },
+    blessings: {
+      respectful: {
+        nativeScript: 'మీ ఆశీస్సులు ప్రతి రుతువులోనూ మన కుటుంబానికి దారి చూపుతాయి.',
+        transliteration: 'Mee aaseessulu prati rutuvulonoo mana kutumbaaniki daari chooputayi.',
+      },
+      familiar: {
+        nativeScript: 'నీ ఆశీస్సులు ప్రతి రుతువులోనూ మన కుటుంబానికి దారి చూపుతాయి.',
+        transliteration: 'Nee aaseessulu prati rutuvulonoo mana kutumbaaniki daari chooputayi.',
+      },
+    },
+    default: {
+      respectful: {
+        nativeScript: 'మీ మధురమైన జ్ఞాపకాలు మరియు ఆశీస్సులు ఎల్లప్పుడూ మా హృదయాల్లో నిలిచి ఉంటాయి.',
+        transliteration: 'Mee madhuramaina gnaapakaalu mariyu aaseessulu ellappudoo maa hrudayaallo nilichi untaayi.',
+      },
+      familiar: {
+        nativeScript: 'నీ మధురమైన జ్ఞాపకాలు మరియు ఆశీస్సులు ఎల్లప్పుడూ మా హృదయాల్లో నిలిచి ఉంటాయి.',
+        transliteration: 'Nee madhuramaina gnaapakaalu mariyu aaseessulu ellappudoo maa hrudayaallo nilichi untaayi.',
+      },
+    },
+  },
+  mr: {
+    breeze_touch: {
+      respectful: {
+        nativeScript: 'आम्ही अगदी बरे आहोत, बाळा. ती गार वाऱ्याची झुळूक दुसरी काही नसून तुमच्या मोठ्या आईचा आशीर्वाद आणि स्पर्श होता. त्या नेहमी तुमच्या खांद्यावर हात ठेवून पाठीशी उभ्या आहेत.',
+        transliteration: 'Aamhi agdi bare aahot, baala. Tee gaar vaaryaachi jhoolook doosri kaahi nasoon tumchya mothya aaecha aasheervaad aani sparsh hota. Tya nehmi tumchya khaandyaavar haat thevoon paatheeshee ubhya aahot.',
+      },
+      familiar: {
+        nativeScript: 'मी अगदी मजेत आहे, बाळा. तो गार वारा तुझ्या मोठ्या आईचा प्रेमळ आशीर्वाद होता, त्या सदैव तुझ्या सोबत आहेत.',
+        transliteration: 'Mee agdi majet aahe, baala. To gaar vaara tujhya mothya aaecha premal aasheervaad hota, tya sadaiv tujhya sobat aahot.',
+      },
+    },
+    grief_comfort: {
+      respectful: {
+        nativeScript: 'मनात धीर धरा, बाळा. डोळ्यांतील अश्रू त्यांच्याबद्दलचे प्रेम दर्शवतात. आम्ही सदैव तुमच्या सोबत आहोत.',
+        transliteration: 'Manaat dheer dhara, baala. Dolyaanteel ashroo tyaanchyabaddalche prem darshavtaat. Aamhi sadaiv tumchya sobat aahot.',
+      },
+      familiar: {
+        nativeScript: 'मन लहान करू नकोस, बाळा. तुझे दुःख मला समजते. रडू नकोस, मी आहे ना पाठीशी.',
+        transliteration: 'Man lahaan karoo nakos, baala. Tujhe dukkh mala samjate. Radoo nakos, mee aahe na paatheeshee.',
+      },
+    },
+    guidance_strength: {
+      respectful: {
+        nativeScript: 'आज मन थोडे भारावलेले आहे, पण तुमचा प्रेमळ सल्ला आठवला की मला खूप धीर मिळतो.',
+        transliteration: 'Aaj man thode bhaaravlele aahe, pan tumcha premal salla aathavla kee mala khoop dheer milto.',
+      },
+      familiar: {
+        nativeScript: 'आज मन थोडे भारावलेले आहे, पण तुझा प्रेमळ सल्ला आठवला की मला खूप धीर मिळतो.',
+        transliteration: 'Aaj man thode bhaaravlele aahe, pan tujha premal salla aathavla kee mala khoop dheer milto.',
+      },
+    },
+    morning_river: {
+      respectful: {
+        nativeScript: 'आजोबा, नदीकाठी आपण केलेली सकाळची सैर तुम्हाला आठवते का?',
+        transliteration: 'Ajoba, nadeekaathi aapan keleli sakaalchi sair tumhala aathavte ka?',
+      },
+      familiar: {
+        nativeScript: 'आजोबा, नदीकाठी आपण केलेली सकाळची सैर तुला आठवते का?',
+        transliteration: 'Ajoba, nadeekaathi aapan keleli sakaalchi sair tula aathavte ka?',
+      },
+    },
+    monsoon_home: {
+      respectful: {
+        nativeScript: 'आपल्या वाड्यावरच्या पावसाळी संध्याकाळी कशा असायच्या ते मला सांगा ना.',
+        transliteration: 'Aaplya vaadyaavarchya paavsaali sandhyaakaali kasha asaaychya te mala saanga na.',
+      },
+      familiar: {
+        nativeScript: 'आपल्या वाड्यावरच्या पावसाळी संध्याकाळी कशा असायच्या ते मला सांग ना.',
+        transliteration: 'Aaplya vaadyaavarchya paavsaali sandhyaakaali kasha asaaychya te mala saang na.',
+      },
+    },
+    wellbeing_greeting: {
+      respectful: {
+        nativeScript: 'मी अगदी छान आहे, बाळा. तुझा आवाज ऐकून माझ्या मनाला खूप समाधान वाटले.',
+        transliteration: 'Mee agdi chhaan aahe, baala. Tujha aavaaj aikoon maajhya manala khoop samaadhaan vaatle.',
+      },
+      familiar: {
+        nativeScript: 'मी मस्त आहे, बाळा. तुझे बोलणे ऐकून खूप बरे वाटले.',
+        transliteration: 'Mee mast aahe, baala. Tujhe bolne aikoon khoop bare vaatle.',
+      },
+    },
+    blessings: {
+      respectful: {
+        nativeScript: 'तुमचे आशीर्वाद प्रत्येक ऋतूत आपल्या कुटुंबाला मार्ग दाखवतात.',
+        transliteration: 'Tumche aasheervaad pratyek rutoot aaplya kutumbaala maarg daakhavtaat.',
+      },
+      familiar: {
+        nativeScript: 'तुझे आशीर्वाद प्रत्येक ऋतूत आपल्या कुटुंबाला मार्ग दाखवतात.',
+        transliteration: 'Tujhe aasheervaad pratyek rutoot aaplya kutumbaala maarg daakhavtaat.',
+      },
+    },
+    default: {
+      respectful: {
+        nativeScript: 'तुमच्या गोड आठवणी आणि आशीर्वाद सदैव आमच्या हृदयात जपलेले आहेत.',
+        transliteration: 'Tumchya god aathvani aani aasheervaad sadaiv aamchya hrudayaat japlele aahot.',
+      },
+      familiar: {
+        nativeScript: 'तुझ्या गोड आठवणी आणि आशीर्वाद सदैव आमच्या हृदयात जपलेले आहेत.',
+        transliteration: 'Tujhya god aathvani aani aasheervaad sadaiv aamchya hrudayaat japlele aahot.',
+      },
+    },
+  },
+  gu: {
+    breeze_touch: {
+      respectful: {
+        nativeScript: 'અમે ખૂબ સારા છીએ, બેટા. એ ઠંડી પવનની લહેરખી બીજું કંઈ નહોતી, પણ તમારા મોટી મમ્મીનો આશીર્વાદ અને સ્પર્શ હતો. તેઓ હંમેશા તમારા ખભા પર હાથ રાખીને સાથે છે.',
+        transliteration: 'Ame khoob saaraa chheeye, beta. E thandi pavanni laherkhi beeju kai nahoti, pan tamaara Moti Mammeeno aasheervaad ane sparsh hato. Teo hamesha tamaara khabha par haath raakheene saathe chhe.',
+      },
+      familiar: {
+        nativeScript: 'હું મજામાં છું, બેટા. એ ઠંડો પવન તારા મોટી મમ્મીનો પ્રેમ અને આશીર્વાદ હતો, તેઓ સદાય તારી સાથે જ છે.',
+        transliteration: 'Hoon majaama chhoon, beta. E thando pavan taara Moti Mammeeno prem ane aasheervaad hato, teo sadaay taari saathe ja chhe.',
+      },
+    },
+    grief_comfort: {
+      respectful: {
+        nativeScript: 'મનમાં હિંમત રાખો, બેટા. આંખના આંસુ તેમના પ્રત્યેનો અખૂટ પ્રેમ દર્શાવે છે. અમે સદા તમારી સાથે છીએ.',
+        transliteration: 'Manma himmat raakho, beta. Aankhna aansu temna pratyeno akhoot prem darshaave chhe. Ame sada tamaari saathe chheeye.',
+      },
+      familiar: {
+        nativeScript: 'મન નાનું ના કર, બેટા. હું તારું દર્દ સમજી શકું છું. રડ નહીં, હું તારી સાથે જ છું.',
+        transliteration: 'Man naanu na kar, beta. Hoon taaru dard samji shaku chhoon. Rad naheen, hoon taari saathe ja chhoon.',
+      },
+    },
+    guidance_strength: {
+      respectful: {
+        nativeScript: 'આજે મન થોડું ભારે છે, પણ તમારી પ્રેમાળ સલાહ યાદ કરું છું ત્યારે મને ઘણી હિંમત મળે છે.',
+        transliteration: 'Aaje man thodu bhaare chhe, pan tamaari premal salaah yaad karu chhoon tyaare mane ghani himmat male chhe.',
+      },
+      familiar: {
+        nativeScript: 'આજે મન થોડું ભારે છે, પણ તારી પ્રેમાળ સલાહ યાદ કરું છું ત્યારે મને ઘણી હિંમત મળે છે.',
+        transliteration: 'Aaje man thodu bhaare chhe, pan taari premal salaah yaad karu chhoon tyaare mane ghani himmat male chhe.',
+      },
+    },
+    morning_river: {
+      respectful: {
+        nativeScript: 'દાદાજી, શું તમને નદી કિનારે આપણી સવારની લટાર યાદ છે?',
+        transliteration: 'Dadaji, shu tamne nadi kinaare aapni savaarni lataar yaad chhe?',
+      },
+      familiar: {
+        nativeScript: 'દાદાજી, શું તને નદી કિનારે આપણી સવારની લટાર યાદ છે?',
+        transliteration: 'Dadaji, shu tane nadi kinaare aapni savaarni lataar yaad chhe?',
+      },
+    },
+    monsoon_home: {
+      respectful: {
+        nativeScript: 'મને આપણા વતનના ઘરની ચોમાસાની સાંજ વિશે વાત કરો ને.',
+        transliteration: 'Mane aapna vatanna gharni chomaasani saanj vishe vaat karo ne.',
+      },
+      familiar: {
+        nativeScript: 'મને આપણા વતનના ઘરની ચોમાસાની સાંજ વિશે વાત કર ને.',
+        transliteration: 'Mane aapna vatanna gharni chomaasani saanj vishe vaat kar ne.',
+      },
+    },
+    wellbeing_greeting: {
+      respectful: {
+        nativeScript: 'હું એકદમ મજામાં છું, બેટા. તમારો અવાજ સાંભળીને મારા હૃદયને ઘણી શાંતિ મળી.',
+        transliteration: 'Hoon ekdam majaama chhoon, beta. Tamaaro aavaaj saambhali-ne maara hrudayne ghani shaanti mali.',
+      },
+      familiar: {
+        nativeScript: 'હું મજામાં છું, બેટા. તારી સાથે વાત કરીને ઘણું સારું લાગ્યું.',
+        transliteration: 'Hoon majaama chhoon, beta. Taari saathe vaat kareene ghanu saaru laagyu.',
+      },
+    },
+    blessings: {
+      respectful: {
+        nativeScript: 'તમારા આશીર્વાદ દરેક ઋતુમાં આપણા પરિવારને રાહ ચીંધે છે.',
+        transliteration: 'Tamaara aasheervaad darek rutuma aapna parivaarne raah cheendhe chhe.',
+      },
+      familiar: {
+        nativeScript: 'તારા આશીર્વાદ દરેક ઋતુમાં આપણા પરિવારને રાહ ચીંધે છે.',
+        transliteration: 'Taara aasheervaad darek rutuma aapna parivaarne raah cheendhe chhe.',
+      },
+    },
+    default: {
+      respectful: {
+        nativeScript: 'તમારી મીઠી યાદો અને આશીર્વાદ હંમેશા અમારા હૃદયમાં વસેલા છે.',
+        transliteration: 'Tamaari meethi yaado ane aasheervaad hamesha amaara hrudayma vasela chhe.',
+      },
+      familiar: {
+        nativeScript: 'તારી મીઠી યાદો અને આશીર્વાદ હંમેશા અમારા હૃદયમાં વસેલા છે.',
+        transliteration: 'Taari meethi yaado ane aasheervaad hamesha amaara hrudayma vasela chhe.',
+      },
+    },
+  },
 };
 
 /**
