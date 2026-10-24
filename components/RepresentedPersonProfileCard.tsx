@@ -1,5 +1,6 @@
 import React from 'react';
-import { SlidersHorizontal, ShieldCheck, CheckCircle } from '@phosphor-icons/react';
+import { SlidersHorizontal, ShieldCheck, CheckCircle, Sparkle } from '@phosphor-icons/react';
+import { GoogleFlowCharacterBinding } from '@/domain/flow';
 
 export interface RepresentedPersonProfileData {
   id: string;
@@ -10,6 +11,7 @@ export interface RepresentedPersonProfileData {
   portraitUrl: string;
   consentVersion: string;
   isSynced: boolean;
+  googleFlowCharacter?: GoogleFlowCharacterBinding;
 }
 
 interface RepresentedPersonProfileCardProps {
@@ -53,12 +55,25 @@ export const RepresentedPersonProfileCard: React.FC<RepresentedPersonProfileCard
             {profile.relationship} • {profile.birthYear}–{profile.passedYear}
           </p>
 
-          <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-400/90 font-mono">
+          <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-400/90 font-mono flex-wrap">
             <ShieldCheck className="text-xs text-amber-400 shrink-0" />
             <span className="truncate max-w-[140px]">{profile.consentVersion}</span>
             <span className="text-emerald-400 flex items-center gap-0.5 ml-1">
               <CheckCircle className="text-[10px]" weight="fill" /> Synced
             </span>
+            {profile.googleFlowCharacter && (
+              <a
+                href={profile.googleFlowCharacter.flowUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-950/80 border border-blue-500/40 text-blue-300 text-[9px] hover:bg-blue-900 transition"
+                title={`Google Flow Digital Clone: ${profile.googleFlowCharacter.characterId}`}
+              >
+                <Sparkle className="text-[9px] text-blue-400" />
+                <span>Flow Clone</span>
+              </a>
+            )}
           </div>
         </div>
       </div>

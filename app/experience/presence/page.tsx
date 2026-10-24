@@ -635,6 +635,28 @@ export default function PresenceGriefTechPage() {
         } catch {}
       }
 
+      const savedPersona = localStorage.getItem('paramsathya_persona_profile_v1');
+      if (savedPersona) {
+        try {
+          const parsed = JSON.parse(savedPersona);
+          if (parsed && parsed.fullName) {
+            setPersonaProfile(parsed);
+            setCompanionPersonName(parsed.fullName);
+            if (parsed.relationship) setCompanionPersonRelation(parsed.relationship);
+            if (parsed.portraitUrl) setActivePortraitUrl(parsed.portraitUrl);
+            if (parsed.googleFlowCharacter?.videoLoopUrl) {
+              setMuseTalkVideoUrl(parsed.googleFlowCharacter.videoLoopUrl);
+            }
+            if (parsed.googleFlowCharacter?.voiceProfileId) {
+              setBoundVoiceId(parsed.googleFlowCharacter.voiceProfileId);
+              setBoundVoiceName(
+                parsed.googleFlowCharacter.voiceName || 'Harshit_voice (Trained Male Voice)'
+              );
+            }
+          }
+        } catch {}
+      }
+
       const savedVoiceId = localStorage.getItem('paramsathya_cloned_voice_id');
       const savedVoiceName = localStorage.getItem('paramsathya_cloned_voice_name');
       if (savedVoiceId) {
@@ -4083,6 +4105,21 @@ export default function PresenceGriefTechPage() {
           setCompanionPersonName(updatedProfile.fullName);
           setCompanionPersonRelation(updatedProfile.relationship);
           setActivePortraitUrl(updatedProfile.portraitUrl);
+
+          // If Google Flow Digital Clone has a videoLoopUrl, bind to living video player
+          if (updatedProfile.googleFlowCharacter?.videoLoopUrl) {
+            setMuseTalkVideoUrl(updatedProfile.googleFlowCharacter.videoLoopUrl);
+          } else if (updatedProfile.googleFlowCharacter) {
+            setMuseTalkVideoUrl(null);
+          }
+
+          // Ensure bound voice aligns with digital clone's voiceProfileId
+          if (updatedProfile.googleFlowCharacter?.voiceProfileId) {
+            setBoundVoiceId(updatedProfile.googleFlowCharacter.voiceProfileId);
+            setBoundVoiceName(
+              updatedProfile.googleFlowCharacter.voiceName || 'Harshit_voice (Trained Male Voice)'
+            );
+          }
 
           if (initialMemory) {
             setUploadedAudioVault((prev) => [

@@ -4,6 +4,8 @@
  */
 
 export * from './invitations';
+export * from './flow';
+import type { GoogleFlowCharacterBinding } from './flow';
 
 
 export type ResponseMode = 'PRESENCE' | 'GUIDE' | 'SAFETY';
@@ -109,6 +111,7 @@ export interface RepresentedPerson {
   passedYear?: number;
   defaultPortraitUrl?: string;
   activeVoiceProfileId?: string;
+  googleFlowCharacter?: GoogleFlowCharacterBinding;
   createdAt: string;
 }
 
