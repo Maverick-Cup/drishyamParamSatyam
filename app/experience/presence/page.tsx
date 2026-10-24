@@ -2108,6 +2108,15 @@ export default function PresenceGriefTechPage() {
           </Link>
           <button
             type="button"
+            onClick={() => setIsConfigurePersonaModalOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-full transition font-medium text-blue-300 hover:text-blue-200 bg-blue-950/40 border border-blue-500/40 hover:bg-blue-900/40 shadow-sm"
+            title="Open Google Flow Digital Clone Studio (Generate Living Digital Clones)"
+          >
+            <Sparkle className="text-sm text-blue-400 shrink-0" weight="fill" />
+            <span className="hidden xl:inline">Flow Clone</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setIsIndicModalOpen(true)}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full transition font-medium shadow-sm ${
               indicModeEnabled
@@ -4188,6 +4197,7 @@ export default function PresenceGriefTechPage() {
         onOpenBreathing={() => setIsBreathingModalOpen(true)}
         onOpenVoiceProfile={() => setIsVoiceModalOpen(true)}
         onOpenThemeSelector={() => setIsThemeDropdownOpen(true)}
+        onOpenFlowCloneStudio={() => setIsConfigurePersonaModalOpen(true)}
         isAmbientMuted={isAmbientMuted}
         onToggleAmbient={() => {
           const nextMuted = !isAmbientMuted;

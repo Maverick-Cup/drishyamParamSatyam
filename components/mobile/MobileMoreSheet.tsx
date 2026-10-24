@@ -26,6 +26,7 @@ interface MobileMoreSheetProps {
   onOpenBreathing: () => void;
   onOpenVoiceProfile: () => void;
   onOpenThemeSelector: () => void;
+  onOpenFlowCloneStudio?: () => void;
   onOpenUserProfile?: () => void;
   onOpenHealingStory?: () => void;
   userDisplayName?: string;
@@ -43,6 +44,7 @@ export function MobileMoreSheet({
   onOpenBreathing,
   onOpenVoiceProfile,
   onOpenThemeSelector,
+  onOpenFlowCloneStudio,
   onOpenUserProfile,
   onOpenHealingStory,
   userDisplayName,
@@ -180,6 +182,31 @@ export function MobileMoreSheet({
             </div>
             <CaretRight className="text-slate-500 text-base" />
           </button>
+
+          {/* Google Flow Digital Clone Studio */}
+          {onOpenFlowCloneStudio && (
+            <button
+              onClick={() => {
+                onOpenFlowCloneStudio();
+                onClose();
+              }}
+              className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-blue-950/40 border border-blue-500/30 hover:border-blue-500/60 transition text-left touch-target-48"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center shrink-0">
+                  <Sparkle className="text-xl text-blue-400" weight="fill" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-100 flex items-center gap-1.5">
+                    <span>Google Flow Clone Studio</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded bg-blue-500/20 text-blue-300 font-mono">Flow</span>
+                  </p>
+                  <p className="text-xs text-slate-400">Generate digital clones from assets</p>
+                </div>
+              </div>
+              <CaretRight className="text-blue-400 text-base" />
+            </button>
+          )}
 
           {/* Indic Language Studio */}
           <button
